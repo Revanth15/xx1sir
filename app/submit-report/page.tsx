@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+
 import {
   Select,
   SelectContent,
@@ -11,28 +12,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
-// ─── Schema ────────────────────────────────────────────────────────────────────
-
-const REPORT_STATUS = ["PENDING_COY", "PENDING_IFM", "IN_PROGRESS", "RESOLVED"] as const;
+const REPORT_STATUS = [
+  "PENDING_COY",
+  "PENDING_IFM",
+  "IN_PROGRESS",
+  "RESOLVED",
+] as const;
 
 const schema = z.object({
-  company:           z.string().min(1, "Select a company"),
+  company: z.string().min(1, "Select a company"),
   damage_tag_placed: z.boolean(),
-  is_urgent:         z.boolean(),
-  reported_by:       z.string().min(2, "Enter rank and name"),
-  type:              z.string().min(1, "Select a damage type"),
-  location:          z.string().min(2, "Location is required"),
-  unit_number:       z.string().min(1, "Unit number is required"),
-  description:       z.string().min(20, "Description must be at least 20 characters"),
-  image_urls:        z.array(z.string()),
-  status:            z.enum(REPORT_STATUS),
-  approved_by_coy:   z.boolean(),
+  is_urgent: z.boolean(),
+  reported_by: z.string().min(2, "Enter rank and name"),
+  type: z.string().min(1, "Select a damage type"),
+  location: z.string().min(2, "Location is required"),
+  unit_number: z.string().min(1, "Unit number is required"),
+  description: z.string().min(20, "Description must be at least 20 characters"),
+  image_urls: z.array(z.string()),
+  status: z.enum(REPORT_STATUS),
+  approved_by_coy: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
-
-// ─── Exported report type (for edit mode) ─────────────────────────────────────
 
 export type BarrackDamageReport = {
   id: string;
@@ -40,62 +54,43 @@ export type BarrackDamageReport = {
   date_reported: string;
 } & FormValues;
 
-// ─── Static data ──────────────────────────────────────────────────────────────
-
 const COMPANIES = ["ALPHA", "BRAVO", "CHARLIE", "SUPPORT", "MSC", "HQ"];
-
-const DAMAGE_TYPES = ["Electrical", "Plumbing", "Infra", "Aircon", "Fire alarm"];
-
+const DAMAGE_TYPES = [
+  "Electrical",
+  "Plumbing",
+  "Infra",
+  "Aircon",
+  "Fire alarm",
+];
 const LEVELS = ["1", "2", "3", "4", "5", "6"];
 
-// Block number → descriptive label shown as a reference hint
 const BLOCK_REFS: { block: string; label: string }[] = [
-  { block: "Blk265", label: "Alpha training shed" },
-  { block: "Blk264", label: "Charlie training shed" },
-  { block: "Blk263", label: "Alpha / Bravo / Charlie buildings" },
-  { block: "Blk262", label: "Bravo training shed" },
-  { block: "Blk261", label: "Support training shed" },
-  { block: "Blk260", label: "Support building" },
-  { block: "Blk235", label: "HQ building" },
+  { block: "Blk 265", label: "Alpha training shed" },
+  { block: "Blk 264", label: "Charlie training shed" },
+  { block: "Blk 263", label: "Alpha / Bravo / Charlie" },
+  { block: "Blk 262", label: "Bravo training shed" },
+  { block: "Blk 261", label: "Support training shed" },
+  { block: "Blk 260", label: "Support building" },
+  { block: "Blk 235", label: "HQ building" },
 ];
 
-// The selectable block values (just the number part, e.g. "265")
 const BLOCKS = BLOCK_REFS.map((r) => r.block.replace("Blk", ""));
 
-// ─── Theme tokens ──────────────────────────────────────────────────────────────
+const INPUT_H = "";
 
-const H = "h-10";
-
-const T = {
-  input:
-    `w-full ${H} rounded-md border border-zinc-700 bg-zinc-800 px-3 text-sm text-white ` +
-    "placeholder-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-2 " +
-    "focus:ring-blue-500/20 transition-colors",
-  inputUrgent:
-    `w-full ${H} rounded-md border border-red-700/60 bg-zinc-800 px-3 text-sm text-white ` +
-    "placeholder-zinc-500 focus:border-red-500 focus:outline-none focus:ring-2 " +
-    "focus:ring-red-500/20 transition-colors",
-  select:
-    `w-full ${H} rounded-md border border-zinc-700 bg-zinc-800 px-3 text-sm text-white ` +
-    "focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 " +
-    "data-[placeholder]:text-zinc-500 transition-colors",
-  selectUrgent:
-    `w-full ${H} rounded-md border border-red-700/60 bg-zinc-800 px-3 text-sm text-white ` +
-    "focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 " +
-    "data-[placeholder]:text-zinc-500 transition-colors",
-  label:         "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400",
-  selectContent: "border-zinc-700 bg-zinc-900 text-white",
-  selectItem:    "cursor-pointer text-zinc-200 focus:bg-zinc-700 focus:text-white",
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseLocation(loc: string): { block: string; level: string; area: string } {
+function parseLocation(loc: string): {
+  block: string;
+  level: string;
+  area: string;
+} {
   const blockMatch = loc.match(/Block\s+(\S+)/i);
   const levelMatch = loc.match(/Level\s+(\d+)/i);
   const block = blockMatch ? blockMatch[1] : "";
   const level = levelMatch ? levelMatch[1] : "";
-  const area = loc.replace(/Block\s+\S+,?\s*/i, "").replace(/Level\s+\d+,?\s*/i, "").trim();
+  const area = loc
+    .replace(/Block\s+\S+,?\s*/i, "")
+    .replace(/Level\s+\d+,?\s*/i, "")
+    .trim();
   return { block, level, area };
 }
 
@@ -104,13 +99,15 @@ function deriveLevel(unitNumber: string): string {
   return /[1-6]/.test(firstChar) ? firstChar : "";
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-red-400">
-      <svg className="h-3 w-3 shrink-0" viewBox="0 0 12 12" fill="currentColor">
+    <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-destructive animate-in fade-in slide-in-from-top-1">
+      <svg
+        className="h-3.5 w-3.5 shrink-0"
+        viewBox="0 0 12 12"
+        fill="currentColor"
+      >
         <path d="M6 1a5 5 0 100 10A5 5 0 006 1zm-.5 2.5h1v3h-1v-3zm0 4h1v1h-1v-1z" />
       </svg>
       {message}
@@ -118,61 +115,42 @@ function FieldError({ message }: { message?: string }) {
   );
 }
 
-/** Numbered question wrapper — matches the reference form's layout */
-function Question({
-  n, label, sub, required, children,
+function YesNo({
+  value,
+  onChange,
+  urgent,
 }: {
-  n: number;
-  label: string;
-  sub?: string;
-  required?: boolean;
-  children: React.ReactNode;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  urgent: boolean;
 }) {
   return (
-    <div className="space-y-3">
-      <div>
-        <p className="text-sm font-semibold text-white">
-          <span className="mr-1.5 text-zinc-500">{n}.</span>
-          {label}
-          {required && <span className="ml-1 text-red-500">*</span>}
-        </p>
-        {sub && <p className="mt-0.5 text-xs text-zinc-500">{sub}</p>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-/** Yes / No two-button selector */
-function YesNo({ value, onChange, urgent }: { value: boolean; onChange: (v: boolean) => void; urgent: boolean }) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {([false, true] as const).map((v) => {
+    <div
+      className={`flex w-full items-center rounded-md border bg-muted/50 p-1 ${INPUT_H}`}
+    >
+      {([true, false] as const).map((v) => {
         const active = value === v;
-        const isYes  = v === true;
-        const activeClass = active
-          ? isYes
-            ? urgent
-              ? "border-red-500/50 bg-red-500/10 text-red-300"
-              : "border-green-500/50 bg-green-500/10 text-green-300"
-            : "border-zinc-500/40 bg-zinc-700 text-zinc-200"
-          : "border-zinc-700 bg-zinc-800/50 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400";
+        const isYes = v === true;
+
+        let activeClass =
+          "text-muted-foreground hover:bg-muted hover:text-foreground";
+        if (active) {
+          if (isYes) {
+            activeClass = urgent
+              ? "bg-destructive text-destructive-foreground shadow-sm"
+              : "bg-primary text-primary-foreground shadow-sm";
+          } else {
+            activeClass = "bg-background text-foreground shadow-sm";
+          }
+        }
+
         return (
           <button
             key={String(v)}
             type="button"
             onClick={() => onChange(v)}
-            className={`flex items-center justify-center gap-2 rounded-md border py-2.5 text-sm font-medium transition-all duration-150 ${activeClass}`}
+            className={`flex flex-1 h-full items-center justify-center rounded-sm text-sm font-medium transition-all ${activeClass}`}
           >
-            {isYes ? (
-              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4.5" />
-              </svg>
-            ) : (
-              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" d="M4 4l8 8M12 4l-8 8" />
-              </svg>
-            )}
             {isYes ? "Yes" : "No"}
           </button>
         );
@@ -181,59 +159,136 @@ function YesNo({ value, onChange, urgent }: { value: boolean; onChange: (v: bool
   );
 }
 
-/** Image upload zone with previews */
-function ImageUploader({ value, onChange, urgent }: { value: string[]; onChange: (urls: string[]) => void; urgent: boolean }) {
-  const inputRef  = useRef<HTMLInputElement>(null);
+function ImageUploader({
+  value,
+  onChange,
+  urgent,
+}: {
+  value: string[];
+  onChange: (urls: string[]) => void;
+  urgent: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  const processFiles = useCallback((files: FileList | null) => {
-    if (!files) return;
-    const next: string[] = [];
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith("image/") || file.size > 4 * 1024 * 1024) return;
-      next.push(URL.createObjectURL(file));
-    });
-    onChange([...value, ...next]);
-  }, [value, onChange]);
+  const processFiles = useCallback(
+    (files: FileList | null) => {
+      if (!files) return;
+      const next: string[] = [];
+      Array.from(files).forEach((file) => {
+        if (!file.type.startsWith("image/") || file.size > 4 * 1024 * 1024)
+          return;
+        next.push(URL.createObjectURL(file));
+      });
+      onChange([...value, ...next]);
+    },
+    [value, onChange]
+  );
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); setDragging(false); processFiles(e.dataTransfer.files);
-  }, [processFiles]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      processFiles(e.dataTransfer.files);
+    },
+    [processFiles]
+  );
 
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
 
-  const accentBorder = urgent ? "border-red-500 bg-red-500/10" : "border-blue-500 bg-blue-500/10";
-  const idleBorder   = urgent
-    ? "border-red-900/40 bg-zinc-800/30 hover:border-red-700/50"
-    : "border-zinc-700 bg-zinc-800/30 hover:border-zinc-500";
+  const accentBorder = urgent
+    ? "border-destructive bg-destructive/5"
+    : "border-primary bg-primary/5";
+  const idleBorder = urgent
+    ? "border-destructive/30 hover:border-destructive/50 hover:bg-destructive/5"
+    : "border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5";
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-8 transition-all duration-200 ${dragging ? accentBorder : idleBorder}`}
+        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-all ${
+          dragging ? accentBorder : idleBorder
+        }`}
       >
-        <svg className="h-8 w-8 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-        </svg>
-        <p className="text-sm text-zinc-400">
-          <span className={`font-medium ${urgent ? "text-red-400" : "text-blue-400"}`}>Choose file</span> or drag and drop here
-        </p>
-        <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => processFiles(e.target.files)} />
+        <div
+          className={`rounded-full p-2.5 ${
+            urgent
+              ? "bg-destructive/10 text-destructive"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+            />
+          </svg>
+        </div>
+        <div>
+          <p className="text-sm font-medium">
+            Click to upload or drag and drop
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            SVG, PNG, JPG or GIF (max. 4MB)
+          </p>
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => processFiles(e.target.files)}
+        />
       </div>
-      <p className="text-xs text-zinc-600">Maximum file size: 4 MB</p>
+
       {value.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
           {value.map((url, i) => (
-            <div key={i} className="group relative aspect-square">
-              <img src={url} alt={`Upload ${i + 1}`} className="h-full w-full rounded-md border border-zinc-700 object-cover" />
-              <button type="button" onClick={() => remove(i)} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white opacity-0 shadow transition-opacity group-hover:opacity-100">
-                <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor"><path strokeLinecap="round" d="M2 2l8 8M10 2l-8 8" strokeWidth={2} /></svg>
+            <div
+              key={i}
+              className="group relative aspect-square overflow-hidden rounded-md border shadow-sm"
+            >
+              <img
+                src={url}
+                alt={`Upload ${i + 1}`}
+                className="h-full w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-background/80 text-destructive opacity-0 backdrop-blur-sm transition-all hover:bg-destructive hover:text-white group-hover:opacity-100"
+              >
+                <svg
+                  className="h-3.5 w-3.5"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    d="M2 2l8 8M10 2l-8 8"
+                    strokeWidth={2}
+                  />
+                </svg>
               </button>
-              <div className="absolute bottom-0 left-0 right-0 rounded-b-md bg-black/60 px-1 py-0.5 text-center text-[10px] text-zinc-400">{i + 1}</div>
+              <div className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                {i + 1}
+              </div>
             </div>
           ))}
         </div>
@@ -242,399 +297,651 @@ function ImageUploader({ value, onChange, urgent }: { value: string[]; onChange:
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 interface DamageReportFormProps {
-  report?:   BarrackDamageReport;
+  report?: BarrackDamageReport;
   onSuccess?: (data: FormValues, id?: string) => void;
 }
 
-export default function DamageReportForm({ report, onSuccess }: DamageReportFormProps) {
+export default function DamageReportForm({
+  report,
+  onSuccess,
+}: DamageReportFormProps) {
   const isEditMode = !!report;
-  const [submitted,  setSubmitted]  = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Location sub-field state (block dropdown + level dropdown + free-text area)
   const [locBlock, setLocBlock] = useState("");
   const [locLevel, setLocLevel] = useState("");
-  const [locArea,  setLocArea]  = useState("");
+  const [locArea, setLocArea] = useState("");
 
-  const { handleSubmit, control, watch, reset, register, setValue, formState: { errors } } = useForm<FormValues>({
+  const {
+    handleSubmit,
+    control,
+    watch,
+    reset,
+    register,
+    setValue,
+    formState: { errors },
+  } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      company: "", damage_tag_placed: false, is_urgent: false,
-      reported_by: "", type: "", location: "", unit_number: "",
-      description: "", image_urls: [], status: "PENDING_COY", approved_by_coy: false,
+      company: "",
+      damage_tag_placed: false,
+      is_urgent: false,
+      reported_by: "",
+      type: "",
+      location: "",
+      unit_number: "",
+      description: "",
+      image_urls: [],
+      status: "PENDING_COY",
+      approved_by_coy: false,
     },
   });
 
-  // Populate in edit mode
   useEffect(() => {
     if (!report) return;
     const { block, level, area } = parseLocation(report.location);
-    setLocBlock(block); setLocLevel(level); setLocArea(area);
+    setLocBlock(block);
+    setLocLevel(level);
+    setLocArea(area);
     reset({
-      company: report.company, damage_tag_placed: report.damage_tag_placed,
-      is_urgent: report.is_urgent, reported_by: report.reported_by,
-      type: report.type, location: report.location, unit_number: report.unit_number,
-      description: report.description, image_urls: report.image_urls,
-      status: report.status, approved_by_coy: report.approved_by_coy,
+      company: report.company,
+      damage_tag_placed: report.damage_tag_placed,
+      is_urgent: report.is_urgent,
+      reported_by: report.reported_by,
+      type: report.type,
+      location: report.location,
+      unit_number: report.unit_number,
+      description: report.description,
+      image_urls: report.image_urls,
+      status: report.status,
+      approved_by_coy: report.approved_by_coy,
     });
   }, [report, reset]);
 
-  const isUrgent   = watch("is_urgent");
+  const isUrgent = watch("is_urgent");
   const unitNumber = watch("unit_number") ?? "";
   const derivedLevel = deriveLevel(unitNumber);
 
-  const inputCls  = isUrgent ? T.inputUrgent : T.input;
-  const selectCls = isUrgent ? T.selectUrgent : T.select;
-  const divider   = <div className={`h-px ${isUrgent ? "bg-red-900/30" : "bg-zinc-800"}`} />;
+  const syncLocation = useCallback(
+    (block: string, level: string, area: string) => {
+      const parts = [
+        block ? `Block ${block}` : "",
+        level ? `Level ${level}` : "",
+        area,
+      ].filter(Boolean);
+      setValue("location", parts.join(", "), { shouldValidate: true });
+    },
+    [setValue]
+  );
 
-  // Location sync
-  const syncLocation = useCallback((block: string, level: string, area: string) => {
-    const parts = [block ? `Block ${block}` : "", level ? `Level ${level}` : "", area].filter(Boolean);
-    setValue("location", parts.join(", "), { shouldValidate: true });
-  }, [setValue]);
-
-  const handleBlockChange = (block: string) => { setLocBlock(block); syncLocation(block, locLevel || derivedLevel, locArea); };
-  const handleLocLevelChange = (level: string) => { setLocLevel(level); syncLocation(locBlock, level, locArea); };
+  const handleBlockChange = (block: string) => {
+    setLocBlock(block);
+    syncLocation(block, locLevel || derivedLevel, locArea);
+  };
+  const handleLocLevelChange = (level: string) => {
+    setLocLevel(level);
+    syncLocation(locBlock, level, locArea);
+  };
   const handleAreaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const area = e.target.value; setLocArea(area); syncLocation(locBlock, locLevel || derivedLevel, area);
+    const area = e.target.value;
+    setLocArea(area);
+    syncLocation(locBlock, locLevel || derivedLevel, area);
   };
 
-  // Unit number — enforce # prefix, re-derive level for location
   const handleUnitNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
     if (!val.startsWith("#")) val = "#" + val.replace(/^#+/, "");
     setValue("unit_number", val, { shouldValidate: true });
     if (!locLevel) {
       const newDerived = deriveLevel(val);
-      if (newDerived !== derivedLevel) syncLocation(locBlock, newDerived, locArea);
+      if (newDerived !== derivedLevel)
+        syncLocation(locBlock, newDerived, locArea);
     }
   };
 
   const onSubmit = async (data: FormValues) => {
     setSubmitting(true);
-    // Create:  await fetch("/api/damage-reports", { method: "POST", body: JSON.stringify(data) });
-    // Update:  await fetch(`/api/damage-reports/${report!.id}`, { method: "PATCH", body: JSON.stringify(data) });
-    console.log(isEditMode ? "Updated:" : "Created:", data);
     await new Promise((r) => setTimeout(r, 900));
     setSubmitting(false);
-    if (onSuccess) { onSuccess(data, report?.id); } else { setSubmitted(true); }
+    if (onSuccess) {
+      onSuccess(data, report?.id);
+    } else {
+      setSubmitted(true);
+    }
   };
 
   const handleReset = () => {
-    setSubmitted(false); setLocBlock(""); setLocLevel(""); setLocArea("");
-    reset({ company: "", damage_tag_placed: false, is_urgent: false, reported_by: "", type: "",
-      location: "", unit_number: "", description: "", image_urls: [], status: "PENDING_COY", approved_by_coy: false });
+    setSubmitted(false);
+    setLocBlock("");
+    setLocLevel("");
+    setLocArea("");
+    reset({
+      company: "",
+      damage_tag_placed: false,
+      is_urgent: false,
+      reported_by: "",
+      type: "",
+      location: "",
+      unit_number: "",
+      description: "",
+      image_urls: [],
+      status: "PENDING_COY",
+      approved_by_coy: false,
+    });
   };
 
-  // ── Success screen ─────────────────────────────────────────────────────────
   if (submitted && !isEditMode) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 px-4">
-        <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-10 text-center shadow-2xl">
-          <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-500/15 text-green-400 ring-1 ring-green-500/30">
-            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </span>
-          <h2 className="mb-2 text-lg font-semibold text-white">Report Submitted</h2>
-          <p className="mb-6 text-sm text-zinc-400">Your damage report has been logged and is pending company review.</p>
-          <button onClick={handleReset} className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition-colors">
-            Submit Another Report
-          </button>
-        </div>
+      <div className="flex min-h-[100dvh] items-center justify-center p-4">
+        <Card className="w-full max-w-md text-center shadow-lg animate-in zoom-in-95">
+          <CardHeader className="pb-4">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+              <svg
+                className="h-8 w-8"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+            <CardTitle className="text-2xl">Report Logged</CardTitle>
+            <CardDescription className="text-base">
+              Your damage report has been securely submitted and is pending
+              verification by the Company.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleReset} className="w-full h-12 text-base">
+              Submit Another Report
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  // ── Form ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-zinc-950 px-4 py-10">
-      {/* Header */}
-      <div className="mx-auto mb-8 max-w-2xl">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-          <span className="text-xs font-medium uppercase tracking-widest text-zinc-500">Facilities Management</span>
-        </div>
-        <div className="flex items-start justify-between gap-4">
+    <div className="min-h-[100dvh] bg-muted/20 px-4 py-8 sm:py-12 md:px-8">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              {isEditMode ? "Edit Damage Report" : "Barrack Damage Report"}
-            </h1>
-            {isEditMode && report?.case_reference && (
-              <p className="mt-1 font-mono text-sm text-zinc-500">Ref: <span className="text-zinc-300">{report.case_reference}</span></p>
-            )}
-          </div>
-          {isEditMode && (
-            <span className="mt-1 shrink-0 rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-400">EDITING</span>
-          )}
-        </div>
-        {!isEditMode && <p className="mt-1.5 text-sm text-zinc-500">Complete all required fields. Reports are submitted to Company for initial approval.</p>}
-      </div>
-
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className={`mx-auto max-w-2xl rounded-xl border p-6 shadow-2xl transition-all duration-300 sm:p-8 ${
-          isUrgent ? "border-red-700/50 bg-zinc-900 shadow-red-950/40" : "border-zinc-800 bg-zinc-900 shadow-black/40"
-        }`}
-      >
-        <div className="space-y-8">
-
-          {/* ── 1. Company ── */}
-          <Question n={1} label="Company" required>
-            <Controller
-              name="company"
-              control={control}
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                  <SelectTrigger className={selectCls}>
-                    <SelectValue placeholder="Select company…" />
-                  </SelectTrigger>
-                  <SelectContent className={T.selectContent}>
-                    {COMPANIES.map((c) => (
-                      <SelectItem key={c} value={c} className={T.selectItem}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <FieldError message={errors.company?.message} />
-          </Question>
-
-          {divider}
-
-          {/* ── 2. Damage tag ── */}
-          <Question
-            n={2}
-            label="Damage Report Tag placed on damage"
-            sub="Ensure report tag is placed by coy COS / barrack damage IC"
-          >
-            <Controller
-              name="damage_tag_placed"
-              control={control}
-              render={({ field }) => <YesNo value={field.value} onChange={field.onChange} urgent={isUrgent} />}
-            />
-          </Question>
-
-          {divider}
-
-          {/* ── 3. Urgent ── */}
-          <Question
-            n={3}
-            label="Reported as urgent damage to 1SIR Barrack Damages IFM"
-            sub="Report submitted to WhatsApp group chat"
-          >
-            <Controller
-              name="is_urgent"
-              control={control}
-              render={({ field }) => <YesNo value={field.value} onChange={field.onChange} urgent={isUrgent} />}
-            />
-            <div className={`overflow-hidden transition-all duration-300 ${isUrgent ? "max-h-10 opacity-100" : "max-h-0 opacity-0"}`}>
-              <p className="flex items-center gap-1.5 text-xs text-red-400">
-                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm-.75 3.5h1.5v4.5h-1.5V4.5zm0 5.5h1.5V11.5h-1.5V10z" />
-                </svg>
-                This report will be escalated to IFM immediately upon submission.
-              </p>
-            </div>
-          </Question>
-
-          {divider}
-
-          {/* ── 4. Reported by ── */}
-          <Question n={4} label="Reported by" sub="Rank & Name" required>
-            <input {...register("reported_by")} placeholder="e.g. CPL Tan Wei Ming" className={inputCls} />
-            <FieldError message={errors.reported_by?.message} />
-          </Question>
-
-          {divider}
-
-          {/* ── 5. Type of damages ── */}
-          <Question n={5} label="Type of damages" required>
-            <Controller
-              name="type"
-              control={control}
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                  <SelectTrigger className={selectCls}>
-                    <SelectValue placeholder="Select damage type…" />
-                  </SelectTrigger>
-                  <SelectContent className={T.selectContent}>
-                    {DAMAGE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t} className={T.selectItem}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <FieldError message={errors.type?.message} />
-          </Question>
-
-          {divider}
-
-          {/* ── 6. Location — Block + Level + Area ── */}
-          <Question n={6} label="Location" sub="(Bunk, Toilet, Office, Armskote etc.)" required>
-            {/* Hidden RHF field stores the assembled string */}
-            <input type="hidden" {...register("location")} />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_2fr]">
-              {/* Block */}
-              <Select onValueChange={handleBlockChange} value={locBlock}>
-                <SelectTrigger className={selectCls}>
-                  <SelectValue placeholder="Block…" />
-                </SelectTrigger>
-                <SelectContent className={T.selectContent}>
-                  {BLOCKS.map((b) => (
-                    <SelectItem key={b} value={b} className={T.selectItem}>Blk{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {/* Level — pre-filled from unit number first digit, overridable */}
-              <Select onValueChange={handleLocLevelChange} value={locLevel || derivedLevel}>
-                <SelectTrigger className={selectCls}>
-                  <SelectValue placeholder="Level…" />
-                </SelectTrigger>
-                <SelectContent className={T.selectContent}>
-                  {LEVELS.map((l) => (
-                    <SelectItem key={l} value={l} className={T.selectItem}>Level {l}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {/* Free-text specific area */}
-              <input
-                value={locArea}
-                onChange={handleAreaChange}
-                placeholder="Specific area (e.g. toilet, corridor)"
-                className={`col-span-2 sm:col-span-1 ${inputCls}`}
-              />
-            </div>
-            {/* Live preview */}
-            {(locBlock || locLevel || derivedLevel || locArea) && (
-              <p className="mt-1.5 text-xs text-zinc-500">
-                <span className={isUrgent ? "text-red-400" : "text-blue-400"}>
-                  {[locBlock ? `Blk${locBlock}` : "", (locLevel || derivedLevel) ? `Level ${locLevel || derivedLevel}` : "", locArea].filter(Boolean).join(", ")}
-                </span>
-              </p>
-            )}
-            <FieldError message={errors.location?.message} />
-          </Question>
-
-          {divider}
-
-          {/* ── 7. Unit number ── */}
-          <Question n={7} label="Unit number" required>
-            {/* Block reference legend */}
-            <div className="mb-3 grid grid-cols-1 gap-1.5 rounded-md border border-zinc-800 bg-zinc-800/40 p-3 sm:grid-cols-2">
-              {BLOCK_REFS.map(({ block, label }) => (
-                <div key={block} className="flex items-baseline gap-2">
-                  <span className={`shrink-0 font-mono text-xs font-semibold ${isUrgent ? "text-red-400" : "text-blue-400"}`}>{block}</span>
-                  <span className="text-xs text-zinc-500">{label}</span>
-                </div>
-              ))}
-            </div>
-            {/* # prefix adornment */}
-            <div className="flex items-stretch">
-              <span className={`flex items-center rounded-l-md border border-r-0 px-3 font-mono text-sm font-semibold select-none transition-colors ${
-                isUrgent ? "border-red-700/60 bg-zinc-800 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400"
-              }`}>
-                #
-              </span>
-              <input
-                value={unitNumber.replace(/^#/, "")}
-                onChange={handleUnitNumberChange}
-                placeholder="e.g. Blk263 01-04"
-                className={`min-w-0 flex-1 rounded-l-none rounded-r-md border border-l-0 px-3 font-mono text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 transition-colors ${H} ${
-                  isUrgent
-                    ? "border-red-700/60 bg-zinc-800 focus:border-red-500 focus:ring-red-500/20"
-                    : "border-zinc-700 bg-zinc-800 focus:border-blue-500 focus:ring-blue-500/20"
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-background px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground shadow-sm">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isUrgent ? "bg-destructive animate-pulse" : "bg-primary"
                 }`}
               />
+              Facilities Management
             </div>
-            {derivedLevel && (
-              <p className="mt-1.5 text-xs text-zinc-500">
-                Level <span className={isUrgent ? "text-red-400" : "text-blue-400"}>{derivedLevel}</span> detected — pre-filled in location above
-              </p>
-            )}
-            <FieldError message={errors.unit_number?.message} />
-          </Question>
-
-          {divider}
-
-          {/* ── 8. Description ── */}
-          <Question
-            n={8}
-            label="Description of damage"
-            sub="(e.g. U06 flushing spoilt, ceiling lights spoiled, C03 toilet bowl choked)"
-            required
-          >
-            <textarea
-              {...register("description")}
-              rows={4}
-              placeholder="Describe the damage — what, where, how severe…"
-              className={`${inputCls} h-auto resize-none py-2.5`}
-            />
-            <div className="mt-1 flex items-start justify-between gap-2">
-              <FieldError message={errors.description?.message} />
-              <span className="ml-auto shrink-0 text-xs text-zinc-600">min. 20 characters</span>
-            </div>
-          </Question>
-
-          {divider}
-
-          {/* ── 9. Image (optional) ── */}
-          <Question n={9} label="Image of damage" sub="For white zone areas only">
-            <Controller
-              name="image_urls"
-              control={control}
-              render={({ field }) => (
-                <ImageUploader value={field.value} onChange={field.onChange} urgent={isUrgent} />
-              )}
-            />
-          </Question>
-
-        </div>
-
-        {/* Submit */}
-        <div className={`mt-8 border-t pt-6 ${isUrgent ? "border-red-900/40" : "border-zinc-800"}`}>
-          <div className="flex flex-col gap-3 sm:flex-row-reverse sm:items-center">
-            <button
-              type="submit"
-              disabled={submitting}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-6 py-2.5 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-50 ${
-                isUrgent
-                  ? "bg-red-600 hover:bg-red-500 shadow-lg shadow-red-950/50"
-                  : "bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-950/50"
-              }`}
-            >
-              {submitting ? (
-                <>
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                  </svg>
-                  {isEditMode ? "Saving…" : "Submitting…"}
-                </>
-              ) : (
-                <>
-                  {isUrgent && (
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                    </svg>
-                  )}
-                  {isEditMode ? "Save Changes" : isUrgent ? "Submit Now (Urgent)" : "Submit Now"}
-                </>
-              )}
-            </button>
-            <p className="text-center text-xs text-zinc-600 sm:text-left">
-              Fields marked <span className="text-red-500">*</span> are required
-            </p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              {isEditMode ? "Edit Report" : "Barrack Damage"}
+            </h1>
           </div>
+          {isEditMode && report?.case_reference && (
+            <div className="flex flex-col items-start sm:items-end">
+              <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                EDIT MODE
+              </span>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
+                Ref:{" "}
+                <span className="font-semibold text-foreground">
+                  {report.case_reference}
+                </span>
+              </p>
+            </div>
+          )}
         </div>
-      </form>
 
-      <div className="mx-auto mt-6 max-w-2xl text-center text-xs text-zinc-700">
-        Barrack Damage Reporting System · {new Date().getFullYear()}
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <Card
+            className={`shadow-md transition-colors duration-300 ${
+              isUrgent ? "border-destructive/50 ring-1 ring-destructive/10" : ""
+            }`}
+          >
+            {isUrgent && (
+              <div className="bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive flex items-center gap-2 rounded-t-xl border-b border-destructive/20">
+                <svg
+                  className="h-4 w-4 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                Urgent report: Will be escalated to IFM immediately upon
+                submission.
+              </div>
+            )}
+
+            <CardHeader>
+              <CardTitle>Report Details</CardTitle>
+              <CardDescription>
+                {isEditMode
+                  ? "Update the details of your facility issue."
+                  : "Submit a facility issue for verification and repair."}
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-8">
+              {/* Row 1: Basic Info */}
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div className="space-y-2.5">
+                  <Label className={errors.company ? "text-destructive" : ""}>
+                    Company <span className="text-destructive">*</span>
+                  </Label>
+                  <Controller
+                    name="company"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ""}
+                      >
+                        <SelectTrigger
+                          className={`${
+                            errors.type
+                              ? "border-destructive focus:ring-destructive/20 w-full"
+                              : " w-full"
+                          } ${INPUT_H}`}
+                        >
+                          <SelectValue placeholder="Which Company are you from?" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COMPANIES.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <FieldError message={errors.company?.message} />
+                </div>
+
+                <div className="space-y-2.5">
+                  <Label
+                    className={errors.reported_by ? "text-destructive" : ""}
+                  >
+                    Reported By (Rank & Name){" "}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    {...register("reported_by")}
+                    placeholder="e.g. CPL Tan Wei Ming"
+                    className={`${
+                      errors.reported_by
+                        ? "border-destructive focus-visible:ring-destructive/20"
+                        : ""
+                    } ${INPUT_H}`}
+                  />
+                  <FieldError message={errors.reported_by?.message} />
+                </div>
+
+                <div className="space-y-2.5">
+                  <Label className={errors.type ? "text-destructive" : ""}>
+                    Damage Category <span className="text-destructive">*</span>
+                  </Label>
+                  <Controller
+                    name="type"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ""}
+                      >
+                        <SelectTrigger
+                          className={`${
+                            errors.type
+                              ? "border-destructive focus:ring-destructive/20 w-full"
+                              : " w-full"
+                          } ${INPUT_H}`}
+                        >
+                          <SelectValue placeholder="Select primary category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DAMAGE_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <FieldError message={errors.type?.message} />
+                </div>
+              </div>
+
+              {/* Row 2: Category & Status Toggles */}
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-2.5">
+                  <Label className="flex items-center justify-between">
+                    Physical Tag Placed
+                    <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">
+                      By COS / IC
+                    </span>
+                  </Label>
+                  <Controller
+                    name="damage_tag_placed"
+                    control={control}
+                    render={({ field }) => (
+                      <YesNo
+                        value={field.value}
+                        onChange={field.onChange}
+                        urgent={isUrgent}
+                      />
+                    )}
+                  />
+                </div>
+
+                <div className="space-y-2.5">
+                  <Label
+                    className={`flex items-center justify-between ${
+                      isUrgent ? "text-destructive font-bold" : ""
+                    }`}
+                  >
+                    Escalate as Urgent
+                    <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">
+                      IFM WhatsApp
+                    </span>
+                  </Label>
+                  <Controller
+                    name="is_urgent"
+                    control={control}
+                    render={({ field }) => (
+                      <YesNo
+                        value={field.value}
+                        onChange={field.onChange}
+                        urgent={isUrgent}
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-border/50" />
+
+              {/* Row 3: Location & Unit Info */}
+              <div className="space-y-6">
+                {/* Block References Panel*/}
+                <div className="space-y-2.5">
+                  <Label>Block Reference Hints</Label>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border bg-card p-3 sm:grid-cols-2 md:grid-cols-3">
+                    {BLOCK_REFS.slice(0, 9).map(({ block, label }) => (
+                      <div key={block} className="flex items-center gap-2">
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[13px] font-bold text-muted-foreground">
+                          {block}
+                        </span>
+                        <span className="truncate text-[13px] text-muted-foreground">
+                          {label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Location/Unit Fields */}
+                <div>
+                  <Label
+                    className={`mb-2.5 block ${
+                      errors.location || errors.unit_number
+                        ? "text-destructive"
+                        : ""
+                    }`}
+                  >
+                    Exact Location <span className="text-destructive">*</span>
+                  </Label>
+                  <input type="hidden" {...register("location")} />
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 md:grid-cols-4">
+                    {/* Block Select */}
+                    <Select onValueChange={handleBlockChange} value={locBlock}>
+                      <SelectTrigger
+                        className={`${
+                          errors.location
+                            ? "border-destructive focus:ring-destructive/20 w-full"
+                            : "w-full"
+                        } ${INPUT_H}`}
+                      >
+                        <SelectValue placeholder="Block" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BLOCKS.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            Blk {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Level Select */}
+                    <Select
+                      onValueChange={handleLocLevelChange}
+                      value={locLevel || derivedLevel}
+                    >
+                      <SelectTrigger
+                        className={`${
+                          errors.location
+                            ? "border-destructive focus:ring-destructive/20 w-full"
+                            : "w-full"
+                        } ${INPUT_H}`}
+                      >
+                        <SelectValue placeholder="Level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LEVELS.map((l) => (
+                          <SelectItem key={l} value={l}>
+                            Lvl {l}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Unit Input */}
+                    <div className="flex sm:col-span-1 md:col-span-1 items-stretch rounded-md shadow-sm">
+                      <span className="flex items-center justify-center rounded-l-md border border-r-0 border-input bg-muted px-3 font-mono text-sm text-muted-foreground select-none">
+                        #
+                      </span>
+                      <Input
+                        value={unitNumber.replace(/^#/, "")}
+                        onChange={handleUnitNumberChange}
+                        placeholder="e.g. 01-04"
+                        className={`rounded-l-none font-mono ${
+                          errors.unit_number
+                            ? "border-destructive focus-visible:ring-destructive/20"
+                            : ""
+                        } ${INPUT_H}`}
+                      />
+                    </div>
+
+                    {/* Area Input */}
+                    <Input
+                      value={locArea}
+                      onChange={handleAreaChange}
+                      placeholder="Specific area (e.g. Bunk 3, Toilet A)"
+                      className={`${
+                        errors.location
+                          ? "border-destructive focus-visible:ring-destructive/20"
+                          : ""
+                      } ${INPUT_H} sm:col-span-4 md:col-span-1`}
+                    />
+                  </div>
+
+                  {/* Combined Preview & Error Area */}
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                    <div>
+                      {(locBlock ||
+                        locLevel ||
+                        derivedLevel ||
+                        locArea ||
+                        unitNumber) && (
+                        <div className="text-xs text-muted-foreground p-2.5 rounded bg-muted/40">
+                          Compiled:{" "}
+                          <span className="font-medium text-foreground">
+                            {[
+                              locBlock ? `Blk ${locBlock}` : "",
+                              locLevel || derivedLevel
+                                ? `Lvl ${locLevel || derivedLevel}`
+                                : "",
+                              unitNumber
+                                ? `#${unitNumber.replace(/^#/, "")}`
+                                : "",
+                              locArea,
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
+                        </div>
+                      )}
+                      {derivedLevel && (
+                        <p className="mt-1.5 text-[11px] font-medium text-muted-foreground pl-2.5">
+                          Level{" "}
+                          <span className="text-foreground">
+                            {derivedLevel}
+                          </span>{" "}
+                          automatically inferred from unit.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <FieldError message={errors.location?.message} />
+                    <FieldError message={errors.unit_number?.message} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-border/50" />
+
+              {/* Row 4: Description & Images */}
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                <div className="space-y-2.5 flex flex-col">
+                  <Label
+                    className={errors.description ? "text-destructive" : ""}
+                  >
+                    Detailed Description{" "}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Textarea
+                    {...register("description")}
+                    placeholder="Provide as much detail as possible to assist technicians (e.g., U06 flushing spoilt, ceiling light C3 blinking)..."
+                    className={`flex-1 resize-none ${
+                      errors.description
+                        ? "border-destructive focus-visible:ring-destructive/20"
+                        : ""
+                    }`}
+                    rows={6}
+                  />
+                  <div className="flex items-center justify-between mt-1">
+                    <FieldError message={errors.description?.message} />
+                    <span className="text-[10px] text-muted-foreground uppercase ml-auto">
+                      Min 20 chars
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  <Label className="flex items-center justify-between">
+                    Photographic Evidence
+                    <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">
+                      White Zone Only
+                    </span>
+                  </Label>
+                  <Controller
+                    name="image_urls"
+                    control={control}
+                    render={({ field }) => (
+                      <ImageUploader
+                        value={field.value}
+                        onChange={field.onChange}
+                        urgent={isUrgent}
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex flex-col-reverse gap-4 border-t bg-muted/20 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Ensure all <span className="text-destructive font-bold">*</span>{" "}
+                fields are filled accurately.
+              </p>
+
+              <Button
+                type="submit"
+                disabled={submitting}
+                variant={isUrgent ? "destructive" : "default"}
+                className="w-full sm:w-auto min-h-[3rem] px-8 font-semibold flex items-center justify-center transition-all"
+              >
+                {submitting ? (
+                  <div className="flex items-center gap-2">
+                    <svg
+                      className="h-4 w-4 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8z"
+                      />
+                    </svg>
+                    <span>{isEditMode ? "Saving..." : "Processing..."}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {isUrgent && (
+                      <svg
+                        className="h-4 w-4 shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                    )}
+                    <span>
+                      {isEditMode
+                        ? "Save Changes"
+                        : isUrgent
+                        ? "Submit Urgent Report"
+                        : "Submit Report"}
+                    </span>
+                  </div>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+        </form>
       </div>
     </div>
   );
