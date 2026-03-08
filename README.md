@@ -1,5 +1,5 @@
 # Project Name
-
+BDDash
 A full-stack web application built with [Next.js](https://nextjs.org) and [Supabase](https://supabase.com), bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). Supabase handles the database (PostgreSQL) and authentication out of the box.
 
 ---
@@ -34,6 +34,7 @@ This project requires a `.env.local` file to connect to Supabase. This file cont
 The file will contain variables along these lines:
 
 ```env
+ENCRYPTION_KEY=your_encryption_key
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
