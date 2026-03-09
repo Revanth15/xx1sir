@@ -39,6 +39,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { deleteUser, updateUserPassword, updateUserInfo } from './actions'
 import { notify } from '../../../utils/toast'
+import { BD_ROLES_REF } from '@/lib/defaults'
 
 interface UserActionsProps {
   userId: string
@@ -48,12 +49,7 @@ interface UserActionsProps {
 
 type DialogType = 'rename' | 'role' | 'password' | 'delete' | null
 
-const ROLES = [
-  { value: 'user',   label: 'Standard User' },
-  { value: 'coy_ic', label: 'Company IC' },
-  { value: 's4_brn', label: 'S4 Branch' },
-  { value: 'admin',  label: 'System Admin' },
-] as const
+const ROLES = BD_ROLES_REF
 
 type RoleValue = typeof ROLES[number]['value']
 

@@ -24,13 +24,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { ImageUploader } from "@/components/imageUploader";
+import { BD_BLOCK_REFS, BD_COMPANY_OPTIONS, BD_DAMAGE_TYPE_OPTIONS, BD_LEVELS_OPTIONS, BD_STATUS_OPTIONS } from "@/lib/defaults";
 
-const REPORT_STATUS = [
-  "PENDING_COY",
-  "PENDING_IFM",
-  "IN_PROGRESS",
-  "RESOLVED",
-] as const;
+const REPORT_STATUS = BD_STATUS_OPTIONS
 
 const schema = z.object({
   company: z.string().min(1, "Select a company"),
@@ -54,25 +51,11 @@ export type BarrackDamageReport = {
   date_reported: string;
 } & FormValues;
 
-const COMPANIES = ["ALPHA", "BRAVO", "CHARLIE", "SUPPORT", "MSC", "HQ"];
-const DAMAGE_TYPES = [
-  "Electrical",
-  "Plumbing",
-  "Infra",
-  "Aircon",
-  "Fire alarm",
-];
-const LEVELS = ["1", "2", "3", "4", "5", "6"];
+const COMPANIES = BD_COMPANY_OPTIONS;
+const DAMAGE_TYPES = BD_DAMAGE_TYPE_OPTIONS;
+const LEVELS = BD_LEVELS_OPTIONS;
 
-const BLOCK_REFS: { block: string; label: string }[] = [
-  { block: "Blk 265", label: "Alpha training shed" },
-  { block: "Blk 264", label: "Charlie training shed" },
-  { block: "Blk 263", label: "Alpha / Bravo / Charlie" },
-  { block: "Blk 262", label: "Bravo training shed" },
-  { block: "Blk 261", label: "Support training shed" },
-  { block: "Blk 260", label: "Support building" },
-  { block: "Blk 235", label: "HQ building" },
-];
+const BLOCK_REFS: { block: string; label: string }[] = BD_BLOCK_REFS
 
 const BLOCKS = BLOCK_REFS.map((r) => r.block.replace("Blk", ""));
 
@@ -155,144 +138,6 @@ function YesNo({
           </button>
         );
       })}
-    </div>
-  );
-}
-
-function ImageUploader({
-  value,
-  onChange,
-  urgent,
-}: {
-  value: string[];
-  onChange: (urls: string[]) => void;
-  urgent: boolean;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-
-  const processFiles = useCallback(
-    (files: FileList | null) => {
-      if (!files) return;
-      const next: string[] = [];
-      Array.from(files).forEach((file) => {
-        if (!file.type.startsWith("image/") || file.size > 4 * 1024 * 1024)
-          return;
-        next.push(URL.createObjectURL(file));
-      });
-      onChange([...value, ...next]);
-    },
-    [value, onChange]
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragging(false);
-      processFiles(e.dataTransfer.files);
-    },
-    [processFiles]
-  );
-
-  const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
-
-  const accentBorder = urgent
-    ? "border-destructive bg-destructive/5"
-    : "border-primary bg-primary/5";
-  const idleBorder = urgent
-    ? "border-destructive/30 hover:border-destructive/50 hover:bg-destructive/5"
-    : "border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5";
-
-  return (
-    <div className="space-y-4">
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-all ${
-          dragging ? accentBorder : idleBorder
-        }`}
-      >
-        <div
-          className={`rounded-full p-2.5 ${
-            urgent
-              ? "bg-destructive/10 text-destructive"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-            />
-          </svg>
-        </div>
-        <div>
-          <p className="text-sm font-medium">
-            Click to upload or drag and drop
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            SVG, PNG, JPG or GIF (max. 4MB)
-          </p>
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => processFiles(e.target.files)}
-        />
-      </div>
-
-      {value.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
-          {value.map((url, i) => (
-            <div
-              key={i}
-              className="group relative aspect-square overflow-hidden rounded-md border shadow-sm"
-            >
-              <img
-                src={url}
-                alt={`Upload ${i + 1}`}
-                className="h-full w-full object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-background/80 text-destructive opacity-0 backdrop-blur-sm transition-all hover:bg-destructive hover:text-white group-hover:opacity-100"
-              >
-                <svg
-                  className="h-3.5 w-3.5"
-                  viewBox="0 0 12 12"
-                  fill="none"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    d="M2 2l8 8M10 2l-8 8"
-                    strokeWidth={2}
-                  />
-                </svg>
-              </button>
-              <div className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-                {i + 1}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -403,12 +248,33 @@ export default function DamageReportForm({
 
   const onSubmit = async (data: FormValues) => {
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setSubmitting(false);
-    if (onSuccess) {
-      onSuccess(data, report?.id);
-    } else {
-      setSubmitted(true);
+    
+    try {
+      
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to submit report');
+      }
+
+      if (onSuccess) {
+        onSuccess(data, isEditMode ? report?.id : result.data.id);
+      } else {
+        setSubmitted(true);
+      }
+    } catch (error) {
+      console.error("Submission error:", error);
+      alert(error instanceof Error ? error.message : "An error occurred while submitting.");
+    } finally {
+      setSubmitting(false);
     }
   };
 

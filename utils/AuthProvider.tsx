@@ -10,7 +10,7 @@ import { notify } from './toast'
 export type UserProfile = {
   user_id: string
   username: string
-  role: 'admin' | 'user'
+  role: 'admin' | 'user' | 's4_brn' | 'coy_ic'
   created_at: string
 }
 
