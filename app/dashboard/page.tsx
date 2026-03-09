@@ -2,6 +2,7 @@
 import { DataTable } from "./data-table"
 import { columns } from "./columns"
 import { createClient } from '@/utils/supabase/server'
+import { DashboardStats } from "./dashboard-stats";
 
 // Pass down the entire params object to easily construct the query
 async function getReports(params: Record<string, string | undefined>) {
@@ -70,6 +71,7 @@ export default async function DashboardPage({
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-5">Barrack Damages Dashboard</h1>
+      <DashboardStats />
       <DataTable 
         columns={columns} 
         data={reports || []} 
