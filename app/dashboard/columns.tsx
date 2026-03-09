@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import DamageReportForm from "../submit-report/page"
 
 
 export type BarrackDamage = {
@@ -137,16 +138,13 @@ export const columns: ColumnDef<BarrackDamage>[] = [
               View
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
+          <DialogContent className="!max-w-[70vw] !w-[70vw] p-0 h-[90vh] overflow-y-auto border-none bg-transparent shadow-none scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+            <DialogHeader className="sr-only">
               <DialogTitle>Report Details: {report.case_reference}</DialogTitle>
             </DialogHeader>
-            {/* Raw JSON Dump for now, wrapped in a pre tag for formatting */}
-            <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-md bg-slate-950 p-4">
-              <pre className="text-sm text-slate-50">
-                {JSON.stringify(report, null, 2)}
-              </pre>
-            </div>
+            
+            <DamageReportForm report={report} mode="view" />
+            
           </DialogContent>
         </Dialog>
       )

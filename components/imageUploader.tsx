@@ -7,9 +7,10 @@ interface ImageUploaderProps {
   value: string[];
   onChange: (urls: string[]) => void;
   urgent: boolean;
+  disabled?: boolean;
 }
 
-export function ImageUploader({ value, onChange, urgent }: ImageUploaderProps) {
+export function ImageUploader({ value, onChange, urgent, disabled }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -20,8 +21,8 @@ export function ImageUploader({ value, onChange, urgent }: ImageUploaderProps) {
 
   const processFiles = useCallback(
     async (files: FileList | null) => {
-      if (!files) return;
-      
+      if (!files || disabled) return; 
+
       setUploading(true);
       const uploadPromises = Array.from(files).map(async (file) => {
         if (!file.type.startsWith("image/") || file.size > 4 * 1024 * 1024) {
@@ -30,13 +31,11 @@ export function ImageUploader({ value, onChange, urgent }: ImageUploaderProps) {
         }
 
         try {
-          // 2. Create a unique path in Firebase Storage
           const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
           
-          // 3. Upload to Firebase
           const snapshot = await uploadBytes(storageRef, file);
           
-          // 4. Get the permanent URL
+          // Get the permanent URL
           return await getDownloadURL(snapshot.ref);
         } catch (error) {
           console.error("Upload failed:", error);
@@ -50,19 +49,23 @@ export function ImageUploader({ value, onChange, urgent }: ImageUploaderProps) {
       onChange([...value, ...validUrls]);
       setUploading(false);
     },
-    [value, onChange]
+    [value, onChange, disabled]
   );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      if (disabled) return;
       setDragging(false);
       processFiles(e.dataTransfer.files);
     },
-    [processFiles]
+    [processFiles, disabled]
   );
 
-  const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
+  const remove = (i: number) => {
+    if (disabled) return;
+    onChange(value.filter((_, idx) => idx !== i));
+  };
 
   // Dynamic Styles
   const accentBorder = urgent ? "border-destructive bg-destructive/5" : "border-primary bg-primary/5";
@@ -70,54 +73,68 @@ export function ImageUploader({ value, onChange, urgent }: ImageUploaderProps) {
 
   return (
     <div className="space-y-4">
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => !uploading && inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-all ${
-          dragging ? accentBorder : idleBorder
-        } ${uploading ? "opacity-50 cursor-not-allowed" : ""}`}
-      >
-        <div className={`rounded-full p-2.5 ${urgent ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
-          {uploading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Upload className="h-5 w-5" />
-          )}
+      {!disabled && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => !uploading && inputRef.current?.click()}
+          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-all ${
+            dragging ? accentBorder : idleBorder
+          } ${uploading ? "opacity-50 cursor-not-allowed" : ""}`}
+        >
+          <div className={`rounded-full p-2.5 ${urgent ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
+            {uploading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Upload className="h-5 w-5" />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium">
+              {uploading ? "Uploading to Firebase..." : "Click to upload or drag and drop"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Max. 4MB per image</p>
+          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            disabled={uploading || disabled}
+            className="hidden"
+            onChange={(e) => processFiles(e.target.files)}
+          />
         </div>
-        <div>
-          <p className="text-sm font-medium">
-            {uploading ? "Uploading to Firebase..." : "Click to upload or drag and drop"}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">Max. 4MB per image</p>
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          disabled={uploading}
-          className="hidden"
-          onChange={(e) => processFiles(e.target.files)}
-        />
-      </div>
+      )}
 
-      {value.length > 0 && (
+      {/* Image Grid Display */}
+      {value.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
           {value.map((url, i) => (
             <div key={url} className="group relative aspect-square overflow-hidden rounded-md border shadow-sm">
               <img src={url} alt="Upload" className="h-full w-full object-cover" />
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-background/80 text-destructive opacity-0 backdrop-blur-sm transition-all group-hover:opacity-100 hover:bg-destructive hover:text-white"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              
+              {/* Conditionally render the remove button only if NOT disabled */}
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-background/80 text-destructive opacity-0 backdrop-blur-sm transition-all group-hover:opacity-100 hover:bg-destructive hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           ))}
         </div>
+      ) : (
+        /* Fallback if disabled and no images exist */
+        disabled && (
+          <div className="rounded-md border border-dashed p-4 text-center">
+            <p className="text-sm text-muted-foreground italic">No images provided.</p>
+          </div>
+        )
       )}
     </div>
   );

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-
+import { CheckCircle2, Clock } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -25,9 +25,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ImageUploader } from "@/components/imageUploader";
-import { BD_BLOCK_REFS, BD_COMPANY_OPTIONS, BD_DAMAGE_TYPE_OPTIONS, BD_LEVELS_OPTIONS, BD_STATUS_OPTIONS } from "@/lib/defaults";
+import {
+  BD_BLOCK_REFS,
+  BD_COMPANY_OPTIONS,
+  BD_DAMAGE_TYPE_OPTIONS,
+  BD_LEVELS_OPTIONS,
+  BD_STATUS_OPTIONS,
+} from "@/lib/defaults";
 
-const REPORT_STATUS = BD_STATUS_OPTIONS
+const REPORT_STATUS = BD_STATUS_OPTIONS;
 
 const schema = z.object({
   company: z.string().min(1, "Select a company"),
@@ -49,15 +55,18 @@ export type BarrackDamageReport = {
   id: string;
   case_reference: string;
   date_reported: string;
+  ifm_reported_date: string | null;
+  ifm_target_date: string | null;
+  repaired_date: string | null;
 } & FormValues;
 
 const COMPANIES = BD_COMPANY_OPTIONS;
 const DAMAGE_TYPES = BD_DAMAGE_TYPE_OPTIONS;
 const LEVELS = BD_LEVELS_OPTIONS;
 
-const BLOCK_REFS: { block: string; label: string }[] = BD_BLOCK_REFS
+const BLOCK_REFS: { block: string; label: string }[] = BD_BLOCK_REFS;
 
-const BLOCKS = BLOCK_REFS.map((r) => r.block.replace("Blk", ""));
+const BLOCKS = BLOCK_REFS.map((r) => r.block.replace("Blk", "").trim());
 
 const INPUT_H = "";
 
@@ -66,14 +75,19 @@ function parseLocation(loc: string): {
   level: string;
   area: string;
 } {
-  const blockMatch = loc.match(/Block\s+(\S+)/i);
-  const levelMatch = loc.match(/Level\s+(\d+)/i);
+  if (!loc) return { block: "", level: "", area: "" };
+  
+  const blockMatch = loc.match(/(?:Block|Blk)\s+([a-zA-Z0-9]+)/i);
+  const levelMatch = loc.match(/(?:Level|Lvl)\s+([a-zA-Z0-9]+)/i);
+  
   const block = blockMatch ? blockMatch[1] : "";
   const level = levelMatch ? levelMatch[1] : "";
+  
   const area = loc
-    .replace(/Block\s+\S+,?\s*/i, "")
-    .replace(/Level\s+\d+,?\s*/i, "")
+    .replace(/(?:Block|Blk)\s+[a-zA-Z0-9]+,?\s*/i, "")
+    .replace(/(?:Level|Lvl)\s+[a-zA-Z0-9]+,?\s*/i, "")
     .trim();
+    
   return { block, level, area };
 }
 
@@ -102,14 +116,18 @@ function YesNo({
   value,
   onChange,
   urgent,
+  disabled,
 }: {
   value: boolean;
   onChange: (v: boolean) => void;
   urgent: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div
-      className={`flex w-full items-center rounded-md border bg-muted/50 p-1 ${INPUT_H}`}
+      className={`flex w-full items-center rounded-md border bg-muted/50 p-1 ${INPUT_H} ${
+        disabled ? "opacity-60 cursor-not-allowed" : ""
+      }`}
     >
       {([true, false] as const).map((v) => {
         const active = value === v;
@@ -131,8 +149,11 @@ function YesNo({
           <button
             key={String(v)}
             type="button"
-            onClick={() => onChange(v)}
-            className={`flex flex-1 h-full items-center justify-center rounded-sm text-sm font-medium transition-all ${activeClass}`}
+            disabled={disabled}
+            onClick={() => !disabled && onChange(v)}
+            className={`flex flex-1 h-full items-center justify-center rounded-sm text-sm font-medium transition-all ${activeClass} ${
+              disabled ? "pointer-events-none" : ""
+            }`}
           >
             {isYes ? "Yes" : "No"}
           </button>
@@ -144,21 +165,38 @@ function YesNo({
 
 interface DamageReportFormProps {
   report?: BarrackDamageReport;
+  mode?: "create" | "edit" | "view";
   onSuccess?: (data: FormValues, id?: string) => void;
 }
 
 export default function DamageReportForm({
   report,
+  mode = "create",
   onSuccess,
 }: DamageReportFormProps) {
-  const isEditMode = !!report;
+  const currentMode =
+    !report && mode === "edit"
+      ? "create"
+      : report && mode === "create"
+      ? "edit"
+      : mode;
+
+  const isEditMode = currentMode === "edit";
+  const isViewMode = currentMode === "view";
+
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const [locBlock, setLocBlock] = useState("");
-  const [locLevel, setLocLevel] = useState("");
-  const [locArea, setLocArea] = useState("");
+  // Initialize location state directly from the report prop if it exists
+  const initialLocation = report
+    ? parseLocation(report.location)
+    : { block: "", level: "", area: "" };
+    
+  const [locBlock, setLocBlock] = useState(initialLocation.block);
+  const [locLevel, setLocLevel] = useState(initialLocation.level);
+  const [locArea, setLocArea] = useState(initialLocation.area);
 
+  // Initialize defaultValues directly from the report prop
   const {
     handleSubmit,
     control,
@@ -170,20 +208,21 @@ export default function DamageReportForm({
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      company: "",
-      damage_tag_placed: false,
-      is_urgent: false,
-      reported_by: "",
-      type: "",
-      location: "",
-      unit_number: "",
-      description: "",
-      image_urls: [],
-      status: "PENDING_COY",
-      approved_by_coy: false,
+      company: report?.company || "",
+      damage_tag_placed: report?.damage_tag_placed || false,
+      is_urgent: report?.is_urgent || false,
+      reported_by: report?.reported_by || "",
+      type: report?.type || "",
+      location: report?.location || "",
+      unit_number: report?.unit_number || "",
+      description: report?.description || "",
+      image_urls: report?.image_urls || [],
+      status: report?.status || "PENDING_COY",
+      approved_by_coy: report?.approved_by_coy || false,
     },
   });
 
+  // Keep the useEffect as a fallback in case the report prop changes while mounted
   useEffect(() => {
     if (!report) return;
     const { block, level, area } = parseLocation(report.location);
@@ -247,14 +286,14 @@ export default function DamageReportForm({
   };
 
   const onSubmit = async (data: FormValues) => {
+    if (isViewMode) return;
     setSubmitting(true);
-    
+
     try {
-      
-      const response = await fetch('/api/reports', {
-        method: 'POST',
+      const response = await fetch("/api/reports", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(data),
       });
@@ -262,7 +301,7 @@ export default function DamageReportForm({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to submit report');
+        throw new Error(result.error || "Failed to submit report");
       }
 
       if (onSuccess) {
@@ -272,7 +311,11 @@ export default function DamageReportForm({
       }
     } catch (error) {
       console.error("Submission error:", error);
-      alert(error instanceof Error ? error.message : "An error occurred while submitting.");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "An error occurred while submitting."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -298,7 +341,7 @@ export default function DamageReportForm({
     });
   };
 
-  if (submitted && !isEditMode) {
+  if (submitted && !isEditMode && !isViewMode) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center p-4">
         <Card className="w-full max-w-md text-center shadow-lg animate-in zoom-in-95">
@@ -335,7 +378,7 @@ export default function DamageReportForm({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-muted/20 px-4 py-8 sm:py-12 md:px-8">
+    <div className="bg-muted/20 px-4 py-8 sm:py-12 md:px-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -348,13 +391,23 @@ export default function DamageReportForm({
               Facilities Management
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              {isEditMode ? "Edit Report" : "Barrack Damage"}
+              {isViewMode
+                ? "View Report"
+                : isEditMode
+                ? "Edit Report"
+                : "Barrack Damage"}
             </h1>
           </div>
-          {isEditMode && report?.case_reference && (
+          {(isEditMode || isViewMode) && report?.case_reference && (
             <div className="flex flex-col items-start sm:items-end">
-              <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                EDIT MODE
+              <span
+                className={`rounded px-2 py-0.5 text-xs font-bold ${
+                  isViewMode
+                    ? "bg-secondary text-secondary-foreground"
+                    : "bg-primary/10 text-primary"
+                }`}
+              >
+                {isViewMode ? "VIEW MODE" : "EDIT MODE"}
               </span>
               <p className="mt-1 font-mono text-xs text-muted-foreground">
                 Ref:{" "}
@@ -387,26 +440,99 @@ export default function DamageReportForm({
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                   />
                 </svg>
-                Urgent report: Will be escalated to IFM immediately upon
-                submission.
+                Urgent report: {isViewMode ? "Escalated" : "Will be escalated"}{" "}
+                to IFM immediately.
               </div>
             )}
 
             <CardHeader>
               <CardTitle>Report Details</CardTitle>
               <CardDescription>
-                {isEditMode
+                {isViewMode
+                  ? "Review the details of the reported facility issue."
+                  : isEditMode
                   ? "Update the details of your facility issue."
                   : "Submit a facility issue for verification and repair."}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-8">
+            {isViewMode && report && (
+              <>
+                <div className="border-t border-border/50" />
+                <CardContent className="bg-muted/10 rounded-b-xl">
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      Administrative Details
+                    </h3>
+                    
+                    <div className="grid grid-cols-2 gap-y-6 gap-x-4 md:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Status</Label>
+                        <div className="font-medium text-sm">
+                          {report.status.replace(/_/g, ' ')}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Coy Approval</Label>
+                        <div className="font-medium text-sm">
+                          {report.approved_by_coy ? (
+                            <span className="flex items-center gap-1.5 text-green-600">
+                              <CheckCircle2 className="h-4 w-4" /> Approved
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                              <Clock className="h-4 w-4" /> Pending
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Date Reported</Label>
+                        <div className="font-medium text-sm">
+                          {new Date(report.date_reported).toLocaleDateString()}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">IFM Reported Date</Label>
+                        <div className="font-medium text-sm">
+                          {report.ifm_reported_date 
+                            ? new Date(report.ifm_reported_date).toLocaleDateString() 
+                            : "—"}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">IFM Target Date</Label>
+                        <div className="font-medium text-sm">
+                          {report.ifm_target_date 
+                            ? new Date(report.ifm_target_date).toLocaleDateString() 
+                            : "—"}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Repaired Date</Label>
+                        <div className="font-medium text-sm">
+                          {report.repaired_date 
+                            ? new Date(report.repaired_date).toLocaleDateString() 
+                            : "—"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </>
+            )}
               {/* Row 1: Basic Info */}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <div className="space-y-2.5">
                   <Label className={errors.company ? "text-destructive" : ""}>
-                    Company <span className="text-destructive">*</span>
+                    Company{" "}
+                    {!isViewMode && <span className="text-destructive">*</span>}
                   </Label>
                   <Controller
                     name="company"
@@ -414,7 +540,8 @@ export default function DamageReportForm({
                     render={({ field }) => (
                       <Select
                         onValueChange={field.onChange}
-                        value={field.value ?? ""}
+                        value={field.value || undefined} // Force undefined if empty to trigger placeholder
+                        disabled={isViewMode}
                       >
                         <SelectTrigger
                           className={`${
@@ -435,7 +562,9 @@ export default function DamageReportForm({
                       </Select>
                     )}
                   />
-                  <FieldError message={errors.company?.message} />
+                  {!isViewMode && (
+                    <FieldError message={errors.company?.message} />
+                  )}
                 </div>
 
                 <div className="space-y-2.5">
@@ -443,10 +572,11 @@ export default function DamageReportForm({
                     className={errors.reported_by ? "text-destructive" : ""}
                   >
                     Reported By (Rank & Name){" "}
-                    <span className="text-destructive">*</span>
+                    {!isViewMode && <span className="text-destructive">*</span>}
                   </Label>
                   <Input
                     {...register("reported_by")}
+                    disabled={isViewMode}
                     placeholder="e.g. CPL Tan Wei Ming"
                     className={`${
                       errors.reported_by
@@ -454,12 +584,15 @@ export default function DamageReportForm({
                         : ""
                     } ${INPUT_H}`}
                   />
-                  <FieldError message={errors.reported_by?.message} />
+                  {!isViewMode && (
+                    <FieldError message={errors.reported_by?.message} />
+                  )}
                 </div>
 
                 <div className="space-y-2.5">
                   <Label className={errors.type ? "text-destructive" : ""}>
-                    Damage Category <span className="text-destructive">*</span>
+                    Damage Category{" "}
+                    {!isViewMode && <span className="text-destructive">*</span>}
                   </Label>
                   <Controller
                     name="type"
@@ -467,7 +600,8 @@ export default function DamageReportForm({
                     render={({ field }) => (
                       <Select
                         onValueChange={field.onChange}
-                        value={field.value ?? ""}
+                        value={field.value || undefined} // Force undefined if empty to trigger placeholder
+                        disabled={isViewMode}
                       >
                         <SelectTrigger
                           className={`${
@@ -488,7 +622,7 @@ export default function DamageReportForm({
                       </Select>
                     )}
                   />
-                  <FieldError message={errors.type?.message} />
+                  {!isViewMode && <FieldError message={errors.type?.message} />}
                 </div>
               </div>
 
@@ -509,6 +643,7 @@ export default function DamageReportForm({
                         value={field.value}
                         onChange={field.onChange}
                         urgent={isUrgent}
+                        disabled={isViewMode}
                       />
                     )}
                   />
@@ -533,6 +668,7 @@ export default function DamageReportForm({
                         value={field.value}
                         onChange={field.onChange}
                         urgent={isUrgent}
+                        disabled={isViewMode}
                       />
                     )}
                   />
@@ -543,22 +679,23 @@ export default function DamageReportForm({
 
               {/* Row 3: Location & Unit Info */}
               <div className="space-y-6">
-                {/* Block References Panel*/}
-                <div className="space-y-2.5">
-                  <Label>Block Reference Hints</Label>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border bg-card p-3 sm:grid-cols-2 md:grid-cols-3">
-                    {BLOCK_REFS.slice(0, 9).map(({ block, label }) => (
-                      <div key={block} className="flex items-center gap-2">
-                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[13px] font-bold text-muted-foreground">
-                          {block}
-                        </span>
-                        <span className="truncate text-[13px] text-muted-foreground">
-                          {label}
-                        </span>
-                      </div>
-                    ))}
+                {!isViewMode && (
+                  <div className="space-y-2.5">
+                    <Label>Block Reference Hints</Label>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border bg-card p-3 sm:grid-cols-2 md:grid-cols-3">
+                      {BLOCK_REFS.slice(0, 9).map(({ block, label }) => (
+                        <div key={block} className="flex items-center gap-2">
+                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[13px] font-bold text-muted-foreground">
+                            {block}
+                          </span>
+                          <span className="truncate text-[13px] text-muted-foreground">
+                            {label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Location/Unit Fields */}
                 <div>
@@ -569,13 +706,18 @@ export default function DamageReportForm({
                         : ""
                     }`}
                   >
-                    Exact Location <span className="text-destructive">*</span>
+                    Exact Location{" "}
+                    {!isViewMode && <span className="text-destructive">*</span>}
                   </Label>
                   <input type="hidden" {...register("location")} />
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 md:grid-cols-4">
                     {/* Block Select */}
-                    <Select onValueChange={handleBlockChange} value={locBlock}>
+                    <Select
+                      onValueChange={handleBlockChange}
+                      value={locBlock || undefined} // Force undefined if empty
+                      disabled={isViewMode}
+                    >
                       <SelectTrigger
                         className={`${
                           errors.location
@@ -597,7 +739,8 @@ export default function DamageReportForm({
                     {/* Level Select */}
                     <Select
                       onValueChange={handleLocLevelChange}
-                      value={locLevel || derivedLevel}
+                      value={locLevel || derivedLevel || undefined} // Force undefined if empty
+                      disabled={isViewMode}
                     >
                       <SelectTrigger
                         className={`${
@@ -618,13 +761,18 @@ export default function DamageReportForm({
                     </Select>
 
                     {/* Unit Input */}
-                    <div className="flex sm:col-span-1 md:col-span-1 items-stretch rounded-md shadow-sm">
+                    <div
+                      className={`flex sm:col-span-1 md:col-span-1 items-stretch rounded-md shadow-sm ${
+                        isViewMode ? "opacity-60 cursor-not-allowed" : ""
+                      }`}
+                    >
                       <span className="flex items-center justify-center rounded-l-md border border-r-0 border-input bg-muted px-3 font-mono text-sm text-muted-foreground select-none">
                         #
                       </span>
                       <Input
                         value={unitNumber.replace(/^#/, "")}
                         onChange={handleUnitNumberChange}
+                        disabled={isViewMode}
                         placeholder="e.g. 01-04"
                         className={`rounded-l-none font-mono ${
                           errors.unit_number
@@ -638,6 +786,7 @@ export default function DamageReportForm({
                     <Input
                       value={locArea}
                       onChange={handleAreaChange}
+                      disabled={isViewMode}
                       placeholder="Specific area (e.g. Bunk 3, Toilet A)"
                       className={`${
                         errors.location
@@ -673,7 +822,7 @@ export default function DamageReportForm({
                           </span>
                         </div>
                       )}
-                      {derivedLevel && (
+                      {derivedLevel && !isViewMode && (
                         <p className="mt-1.5 text-[11px] font-medium text-muted-foreground pl-2.5">
                           Level{" "}
                           <span className="text-foreground">
@@ -685,10 +834,12 @@ export default function DamageReportForm({
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <FieldError message={errors.location?.message} />
-                    <FieldError message={errors.unit_number?.message} />
-                  </div>
+                  {!isViewMode && (
+                    <div className="space-y-1">
+                      <FieldError message={errors.location?.message} />
+                      <FieldError message={errors.unit_number?.message} />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -701,10 +852,11 @@ export default function DamageReportForm({
                     className={errors.description ? "text-destructive" : ""}
                   >
                     Detailed Description{" "}
-                    <span className="text-destructive">*</span>
+                    {!isViewMode && <span className="text-destructive">*</span>}
                   </Label>
                   <Textarea
                     {...register("description")}
+                    disabled={isViewMode}
                     placeholder="Provide as much detail as possible to assist technicians (e.g., U06 flushing spoilt, ceiling light C3 blinking)..."
                     className={`flex-1 resize-none ${
                       errors.description
@@ -713,12 +865,14 @@ export default function DamageReportForm({
                     }`}
                     rows={6}
                   />
-                  <div className="flex items-center justify-between mt-1">
-                    <FieldError message={errors.description?.message} />
-                    <span className="text-[10px] text-muted-foreground uppercase ml-auto">
-                      Min 20 chars
-                    </span>
-                  </div>
+                  {!isViewMode && (
+                    <div className="flex items-center justify-between mt-1">
+                      <FieldError message={errors.description?.message} />
+                      <span className="text-[10px] text-muted-foreground uppercase ml-auto">
+                        Min 20 chars
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2.5">
@@ -736,76 +890,79 @@ export default function DamageReportForm({
                         value={field.value}
                         onChange={field.onChange}
                         urgent={isUrgent}
+                        disabled={isViewMode}
                       />
                     )}
                   />
                 </div>
               </div>
             </CardContent>
+            
+            {!isViewMode && (
+              <CardFooter className="flex flex-col-reverse gap-4 border-t bg-muted/20 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Ensure all <span className="text-destructive font-bold">*</span>{" "}
+                  fields are filled accurately.
+                </p>
 
-            <CardFooter className="flex flex-col-reverse gap-4 border-t bg-muted/20 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-muted-foreground">
-                Ensure all <span className="text-destructive font-bold">*</span>{" "}
-                fields are filled accurately.
-              </p>
-
-              <Button
-                type="submit"
-                disabled={submitting}
-                variant={isUrgent ? "destructive" : "default"}
-                className="w-full sm:w-auto min-h-[3rem] px-8 font-semibold flex items-center justify-center transition-all"
-              >
-                {submitting ? (
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v8z"
-                      />
-                    </svg>
-                    <span>{isEditMode ? "Saving..." : "Processing..."}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    {isUrgent && (
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  variant={isUrgent ? "destructive" : "default"}
+                  className="w-full sm:w-auto min-h-[3rem] px-8 font-semibold flex items-center justify-center transition-all"
+                >
+                  {submitting ? (
+                    <div className="flex items-center gap-2">
                       <svg
-                        className="h-4 w-4 shrink-0"
+                        className="h-4 w-4 animate-spin"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="currentColor"
                       >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
                         <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2.5}
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8z"
                         />
                       </svg>
-                    )}
-                    <span>
-                      {isEditMode
-                        ? "Save Changes"
-                        : isUrgent
-                        ? "Submit Urgent Report"
-                        : "Submit Report"}
-                    </span>
-                  </div>
-                )}
-              </Button>
-            </CardFooter>
+                      <span>{isEditMode ? "Saving..." : "Processing..."}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {isUrgent && (
+                        <svg
+                          className="h-4 w-4 shrink-0"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2.5}
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          />
+                        </svg>
+                      )}
+                      <span>
+                        {isEditMode
+                          ? "Save Changes"
+                          : isUrgent
+                          ? "Submit Urgent Report"
+                          : "Submit Report"}
+                      </span>
+                    </div>
+                  )}
+                </Button>
+              </CardFooter>
+            )}
           </Card>
         </form>
       </div>
