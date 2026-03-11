@@ -28,7 +28,7 @@ export async function DashboardStats() {
     const status = report.status || "UNKNOWN";
     statusCounts[status] = (statusCounts[status] || 0) + 1;
 
-    const isCompleted = status === "COMPLETED" || status === "REPAIRED";
+    const isCompleted = status === "COMPLETED" || status === "REJECTED";
     const reportedDate = new Date(report.date_reported);
 
     if (!isCompleted) {

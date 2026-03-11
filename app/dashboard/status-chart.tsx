@@ -2,7 +2,14 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#ef4444']
+const STATUS_COLORS: Record<string, string> = {
+    PENDING_COY: "#eab308",   
+    PENDING_S4: "#f97316",    
+    REPORTED_IFM: "#3b82f6",  
+    COMPLETED: "#22c55e",     
+    REJECTED: "#ef4444",      
+    DEFAULT: "#64748b",      
+  }
 
 export function StatusChart({ data }: { data: { name: string; value: number }[] }) {
     if (!data || data.length === 0) return <div className="text-sm text-gray-500">No data available</div>
@@ -22,7 +29,7 @@ export function StatusChart({ data }: { data: { name: string; value: number }[] 
               stroke="none"
             >
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.name] || STATUS_COLORS.DEFAULT} />
               ))}
             </Pie>
             <Tooltip
