@@ -29,6 +29,6 @@ CREATE TABLE case_timeline_log (
   damage_id UUID REFERENCES barrack_damage(id) ON DELETE CASCADE,
   action_taken TEXT NOT NULL,
   actor_name TEXT NOT NULL,
-  actor_id UUID, -- Can link to auth.users later if and when we wanna
+  actor_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );

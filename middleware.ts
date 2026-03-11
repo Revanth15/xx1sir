@@ -1,6 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const publicRoutes = [
+  '/login',
+  '/submit-report',
+]
+
+// Define public route prefixes (for dynamic routes like /blog/[slug])
+const publicPrefixes = [
+  '/submit-report',
+]
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -24,16 +34,25 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login')
-  const isAdminRoute = request.nextUrl.pathname.startsWith('/admin')
+  const pathname = request.nextUrl.pathname
+  
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup')
+  const isAdminRoute = pathname.startsWith('/admin')
+
+  // Check if the route exactly matches a public route OR starts with a public prefix
+  const isPublicRoute = publicRoutes.includes(pathname) || 
+                        publicPrefixes.some(prefix => pathname.startsWith(prefix))
 
   // Redirect unauthenticated users away from protected routes
-  if (!user && !isAuthRoute) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  if (!user && !isPublicRoute) {
+    // Save the original URL to redirect them back after logging in
+    const url = new URL('/login', request.url)
+    url.searchParams.set('next', pathname)
+    return NextResponse.redirect(url)
   }
 
   if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   // Check admin role for /admin routes

@@ -1,11 +1,20 @@
 // app/dashboard/columns.tsx
 "use client"
 
+import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, AlertCircle, Clock } from "lucide-react"
 import { badgeVariants } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import {
+  MoreHorizontal,
+  Eye,
+  Edit,
+  Merge,
+  Trash2
+} from "lucide-react"
+
 import {
   Select,
   SelectContent,
@@ -14,19 +23,23 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Eye } from "lucide-react"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
-import DamageReportForm from "../submit-report/page"
-import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
-import { BD_STATUS_OPTIONS, BD_STATUS_STYLES } from "@/lib/defaults"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
+import DamageReportForm from "../submit-report/page"
+import { BD_STATUS_OPTIONS, BD_STATUS_STYLES } from "@/lib/defaults"
 
 export type BarrackDamage = {
   id: string
@@ -131,28 +144,7 @@ export const columns: ColumnDef<BarrackDamage>[] = [
   {
     id: "actions",
     enableColumnFilter: false,
-    cell: ({ row }) => {
-      const report = row.original
-
-      return (
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              <Eye className="w-4 h-4 mr-2" />
-              View
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="!max-w-[70vw] !w-[70vw] p-0 h-[90vh] overflow-y-auto border-none bg-transparent shadow-none scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-            <DialogHeader className="sr-only">
-              <DialogTitle>Report Details: {report.case_reference}</DialogTitle>
-            </DialogHeader>
-            
-            <DamageReportForm report={report} mode="view" />
-            
-          </DialogContent>
-        </Dialog>
-      )
-    },
+    cell: ({ row }) => <ActionCell report={row.original} />,
   },
 ]
 
@@ -212,5 +204,75 @@ const StatusCell = ({ report }: { report: BarrackDamage }) => {
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+const ActionCell = ({ report }: { report: BarrackDamage }) => {
+  // Manage dialog states outside the DropdownMenu to prevent closure conflicts
+  const [showViewDialog, setShowViewDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0" aria-label="More Options">
+            <span className="sr-only">Open menu</span>
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuGroup>
+            <DropdownMenuItem onSelect={() => setShowViewDialog(true)}>
+              <Eye className="mr-2 h-4 w-4" />
+              View
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setShowEditDialog(true)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Merge className="mr-2 h-4 w-4" />
+              Merge
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent 
+          className="!max-w-[70vw] !w-[70vw] p-0 h-[90vh] overflow-y-auto border-none bg-transparent shadow-none scrollbar-hide" 
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>View Report Details: {report.case_reference}</DialogTitle>
+          </DialogHeader>
+          <DamageReportForm report={report} mode="view" />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent 
+          className="!max-w-[70vw] !w-[70vw] p-0 h-[90vh] overflow-y-auto border-none bg-transparent shadow-none scrollbar-hide" 
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Edit Report Details: {report.case_reference}</DialogTitle>
+          </DialogHeader>
+          <DamageReportForm 
+            report={report} 
+            mode="edit" 
+            onSuccess={() => setShowEditDialog(false)} 
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
