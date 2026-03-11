@@ -1,4 +1,3 @@
-// app/dashboard/data-table.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,6 +6,8 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
+  getExpandedRowModel,
+  ExpandedState,
 } from "@tanstack/react-table"
 import {
   Table,
@@ -18,58 +19,26 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { BD_STATUS_OPTIONS, BD_COMPANY_OPTIONS, BD_DAMAGE_TYPE_OPTIONS } from "@/lib/defaults"
+import { cn } from "@/lib/utils"
 
-// --- Define your finite options here ---
+// ... (Keep STATUS_OPTIONS, COMPANY_OPTIONS, TYPE_OPTIONS, and DebouncedInput the same) ...
 const STATUS_OPTIONS = BD_STATUS_OPTIONS
 const COMPANY_OPTIONS = BD_COMPANY_OPTIONS
 const TYPE_OPTIONS = BD_DAMAGE_TYPE_OPTIONS
 
-// --- Debounced Input Helper ---
-function DebouncedInput({
-  value: initialValue,
-  onChange,
-  debounce = 500,
-  ...props
-}: {
-  value: string | number
-  onChange: (value: string | number) => void
-  debounce?: number
-} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange">) {
+function DebouncedInput({ value: initialValue, onChange, debounce = 500, ...props }: any) {
   const [value, setValue] = useState(initialValue)
-
-  useEffect(() => {
-    setValue(initialValue)
-  }, [initialValue])
-
+  useEffect(() => { setValue(initialValue) }, [initialValue])
   useEffect(() => {
     if (value === initialValue) return;
-
-    const timeout = setTimeout(() => {
-      onChange(value)
-    }, debounce)
-
+    const timeout = setTimeout(() => onChange(value), debounce)
     return () => clearTimeout(timeout)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, debounce])
-
-  return (
-    <Input
-      {...props}
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-    />
-  )
+  }, [value, debounce, initialValue, onChange])
+  return <Input {...props} value={value} onChange={(e) => setValue(e.target.value)} />
 }
-// ---------------------------------------------------
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -77,11 +46,7 @@ interface DataTableProps<TData, TValue> {
   pageCount: number
 }
 
-export function DataTable<TData, TValue>({
-  columns,
-  data,
-  pageCount,
-}: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({ columns, data, pageCount }: DataTableProps<TData, TValue>) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -89,33 +54,31 @@ export function DataTable<TData, TValue>({
   const currentPage = Number(searchParams.get("page")) || 1
   const globalSearch = searchParams.get("search") || ""
 
+  // NEW: State to track which rows are expanded to show duplicates
+  const [expanded, setExpanded] = useState<ExpandedState>({})
+
   const table = useReactTable({
     data,
     columns,
     pageCount,
+    state: { expanded },
+    onExpandedChange: setExpanded,
+    // NEW: Tells the table how to find the stacked duplicates
+    getSubRows: (row: any) => row.subRows, 
+    getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(), 
     manualPagination: true,
     manualFiltering: true,
-    getCoreRowModel: getCoreRowModel(),
   })
 
   const updateUrlParams = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString())
-    
-    // If "all" or empty string is passed, remove the filter entirely
-    if (value && value !== "all") {
-      params.set(key, value)
-    } else {
-      params.delete(key)
-    }
-    
-    if (key !== "page") {
-      params.set("page", "1")
-    }
-    
+    if (value && value !== "all") params.set(key, value)
+    else params.delete(key)
+    if (key !== "page") params.set("page", "1")
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  // Helper function to get dropdown options based on column ID
   const getDropdownOptions = (columnId: string) => {
     switch (columnId) {
       case 'status': return STATUS_OPTIONS;
@@ -127,11 +90,10 @@ export function DataTable<TData, TValue>({
 
   return (
     <div>
-      {/* Global Search */}
       <div className="flex items-center py-4">
         <DebouncedInput
           value={globalSearch}
-          onChange={(value) => updateUrlParams("search", String(value))}
+          onChange={(value: any) => updateUrlParams("search", String(value))}
           className="max-w-sm"
           placeholder="Search all records..."
         />
@@ -140,36 +102,24 @@ export function DataTable<TData, TValue>({
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
+             {/* ... (Keep your existing TableHeader code exactly the same) ... */}
+             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const columnId = header.column.id
                   const canFilter = header.column.getCanFilter()
                   const currentFilterValue = searchParams.get(columnId) || ""
-                  
-                  // Check if this column should be a dropdown
                   const isDropdownFilter = ['status', 'company', 'type'].includes(columnId)
 
                   return (
                     <TableHead key={header.id} className="align-top py-3">
                       <div className="flex flex-col gap-2">
-                        {/* Render Header Name */}
                         <div>
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
+                          {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                         </div>
-                        
-                        {/* Render Filters conditionally */}
                         {canFilter && (
                           isDropdownFilter ? (
-                            <Select
-                              value={currentFilterValue || "all"} // default to "all" to show placeholder state properly
-                              onValueChange={(value) => updateUrlParams(columnId, value)}
-                            >
+                            <Select value={currentFilterValue || "all"} onValueChange={(value) => updateUrlParams(columnId, value)}>
                               <SelectTrigger className="h-8 text-xs font-normal">
                                 <SelectValue placeholder={`Filter ${header.column.columnDef.header}...`} />
                               </SelectTrigger>
@@ -185,7 +135,7 @@ export function DataTable<TData, TValue>({
                           ) : (
                             <DebouncedInput
                               value={currentFilterValue}
-                              onChange={(value) => updateUrlParams(columnId, String(value))}
+                              onChange={(value: any) => updateUrlParams(columnId, String(value))}
                               placeholder={`Filter ${header.column.columnDef.header}...`}
                               className="h-8 text-xs font-normal"
                             />
@@ -201,9 +151,15 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow 
+                  key={row.id} 
+                  className={cn(row.depth > 0 && "bg-muted/30 hover:bg-muted/50 border-l-4 border-l-purple-500")}
+                >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell 
+                      key={cell.id}
+                      className={cn(row.depth > 0 && cell.column.id === 'case_reference' && "pl-8")}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -220,25 +176,14 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      {/* Pagination Controls */}
       <div className="flex items-center justify-center space-x-2 py-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => updateUrlParams("page", String(currentPage - 1))}
-          disabled={currentPage <= 1}
-        >
+        <Button variant="outline" size="sm" onClick={() => updateUrlParams("page", String(currentPage - 1))} disabled={currentPage <= 1}>
           Previous
         </Button>
         <span className="text-sm text-muted-foreground">
           Page {currentPage} of {pageCount || 1}
         </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => updateUrlParams("page", String(currentPage + 1))}
-          disabled={currentPage >= pageCount}
-        >
+        <Button variant="outline" size="sm" onClick={() => updateUrlParams("page", String(currentPage + 1))} disabled={currentPage >= pageCount}>
           Next
         </Button>
       </div>

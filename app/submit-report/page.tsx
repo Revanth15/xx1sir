@@ -51,14 +51,24 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+// --- NEW DATA STRUCTURE TYPES ---
+export type DamageIncident = {
+  id: string;
+  incident_reference?: string;
+  incident_status: string;
+  ifm_reported_date: string | null;
+  ifm_target_date: string | null;
+  repaired_date: string | null;
+}
+
 export type BarrackDamageReport = {
   id: string;
   case_reference: string;
   date_reported: string;
-  ifm_reported_date: string | null;
-  ifm_target_date: string | null;
-  repaired_date: string | null;
+  incident_id: string | null;
+  incident: DamageIncident | null; // Nested IFM data lives here now
 } & FormValues;
+// --------------------------------
 
 const COMPANIES = BD_COMPANY_OPTIONS;
 const DAMAGE_TYPES = BD_DAMAGE_TYPE_OPTIONS;
@@ -187,7 +197,6 @@ export default function DamageReportForm({
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Initialize location state directly from the report prop if it exists
   const initialLocation = report
     ? parseLocation(report.location)
     : { block: "", level: "", area: "" };
@@ -196,7 +205,6 @@ export default function DamageReportForm({
   const [locLevel, setLocLevel] = useState(initialLocation.level);
   const [locArea, setLocArea] = useState(initialLocation.area);
 
-  // Initialize defaultValues directly from the report prop
   const {
     handleSubmit,
     control,
@@ -222,7 +230,6 @@ export default function DamageReportForm({
     },
   });
 
-  // Keep the useEffect as a fallback in case the report prop changes while mounted
   useEffect(() => {
     if (!report) return;
     const { block, level, area } = parseLocation(report.location);
@@ -290,18 +297,24 @@ export default function DamageReportForm({
     setSubmitting(true);
 
     try {
+      const method = isEditMode ? "PUT" : "POST";
+      
+      const payload = isEditMode && report 
+        ? { ...data, id: report.id, incident_id: report.incident_id }
+        : data;
+
       const response = await fetch("/api/reports", {
-        method: "POST",
+        method: method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to submit report");
+        throw new Error(result.error || "Failed to save report");
       }
 
       if (onSuccess) {
@@ -314,7 +327,7 @@ export default function DamageReportForm({
       alert(
         error instanceof Error
           ? error.message
-          : "An error occurred while submitting."
+          : "An error occurred while saving."
       );
     } finally {
       setSubmitting(false);
@@ -415,6 +428,12 @@ export default function DamageReportForm({
                   {report.case_reference}
                 </span>
               </p>
+              {/* Added Incident Reference display for Admins */}
+              {report.incident?.incident_reference && (
+                <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/70">
+                  Inc: {report.incident.incident_reference}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -468,7 +487,7 @@ export default function DamageReportForm({
                     
                     <div className="grid grid-cols-2 gap-y-6 gap-x-4 md:grid-cols-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">Status</Label>
+                        <Label className="text-xs text-muted-foreground">Report Status</Label>
                         <div className="font-medium text-sm">
                           {report.status.replace(/_/g, ' ')}
                         </div>
@@ -496,11 +515,12 @@ export default function DamageReportForm({
                         </div>
                       </div>
 
+                      {/* --- UPDATED TO PULL FROM nested report.incident --- */}
                       <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">IFM Reported Date</Label>
                         <div className="font-medium text-sm">
-                          {report.ifm_reported_date 
-                            ? new Date(report.ifm_reported_date).toLocaleDateString() 
+                          {report.incident?.ifm_reported_date 
+                            ? new Date(report.incident.ifm_reported_date).toLocaleDateString() 
                             : "—"}
                         </div>
                       </div>
@@ -508,8 +528,8 @@ export default function DamageReportForm({
                       <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">IFM Target Date</Label>
                         <div className="font-medium text-sm">
-                          {report.ifm_target_date 
-                            ? new Date(report.ifm_target_date).toLocaleDateString() 
+                          {report.incident?.ifm_target_date 
+                            ? new Date(report.incident.ifm_target_date).toLocaleDateString() 
                             : "—"}
                         </div>
                       </div>
@@ -517,17 +537,19 @@ export default function DamageReportForm({
                       <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">Repaired Date</Label>
                         <div className="font-medium text-sm">
-                          {report.repaired_date 
-                            ? new Date(report.repaired_date).toLocaleDateString() 
+                          {report.incident?.repaired_date 
+                            ? new Date(report.incident.repaired_date).toLocaleDateString() 
                             : "—"}
                         </div>
                       </div>
+                      {/* -------------------------------------------------- */}
                     </div>
                   </div>
                 </CardContent>
               </>
             )}
-              {/* Row 1: Basic Info */}
+            
+            {/* The rest of the form stays exactly the same as everything else modifies the report values themselves */}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <div className="space-y-2.5">
                   <Label className={errors.company ? "text-destructive" : ""}>
@@ -540,7 +562,7 @@ export default function DamageReportForm({
                     render={({ field }) => (
                       <Select
                         onValueChange={field.onChange}
-                        value={field.value || undefined} // Force undefined if empty to trigger placeholder
+                        value={field.value || undefined} 
                         disabled={isViewMode}
                       >
                         <SelectTrigger
@@ -600,7 +622,7 @@ export default function DamageReportForm({
                     render={({ field }) => (
                       <Select
                         onValueChange={field.onChange}
-                        value={field.value || undefined} // Force undefined if empty to trigger placeholder
+                        value={field.value || undefined} 
                         disabled={isViewMode}
                       >
                         <SelectTrigger
@@ -626,7 +648,6 @@ export default function DamageReportForm({
                 </div>
               </div>
 
-              {/* Row 2: Category & Status Toggles */}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2.5">
                   <Label className="flex items-center justify-between">
@@ -677,7 +698,6 @@ export default function DamageReportForm({
 
               <div className="border-t border-border/50" />
 
-              {/* Row 3: Location & Unit Info */}
               <div className="space-y-6">
                 {!isViewMode && (
                   <div className="space-y-2.5">
@@ -697,7 +717,6 @@ export default function DamageReportForm({
                   </div>
                 )}
 
-                {/* Location/Unit Fields */}
                 <div>
                   <Label
                     className={`mb-2.5 block ${
@@ -712,10 +731,9 @@ export default function DamageReportForm({
                   <input type="hidden" {...register("location")} />
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 md:grid-cols-4">
-                    {/* Block Select */}
                     <Select
                       onValueChange={handleBlockChange}
-                      value={locBlock || undefined} // Force undefined if empty
+                      value={locBlock || undefined} 
                       disabled={isViewMode}
                     >
                       <SelectTrigger
@@ -736,10 +754,9 @@ export default function DamageReportForm({
                       </SelectContent>
                     </Select>
 
-                    {/* Level Select */}
                     <Select
                       onValueChange={handleLocLevelChange}
-                      value={locLevel || derivedLevel || undefined} // Force undefined if empty
+                      value={locLevel || derivedLevel || undefined} 
                       disabled={isViewMode}
                     >
                       <SelectTrigger
@@ -760,7 +777,6 @@ export default function DamageReportForm({
                       </SelectContent>
                     </Select>
 
-                    {/* Unit Input */}
                     <div
                       className={`flex sm:col-span-1 md:col-span-1 items-stretch rounded-md shadow-sm ${
                         isViewMode ? "opacity-60 cursor-not-allowed" : ""
@@ -782,7 +798,6 @@ export default function DamageReportForm({
                       />
                     </div>
 
-                    {/* Area Input */}
                     <Input
                       value={locArea}
                       onChange={handleAreaChange}
@@ -796,7 +811,6 @@ export default function DamageReportForm({
                     />
                   </div>
 
-                  {/* Combined Preview & Error Area */}
                   <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
                     <div>
                       {(locBlock ||
@@ -845,7 +859,6 @@ export default function DamageReportForm({
 
               <div className="border-t border-border/50" />
 
-              {/* Row 4: Description & Images */}
               <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                 <div className="space-y-2.5 flex flex-col">
                   <Label

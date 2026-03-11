@@ -1,9 +1,10 @@
-export const BD_STATUS_OPTIONS = ['PENDING_COY', 'PENDING_S4', 'REPORTED_IFM', 'COMPLETED', 'REJECTED']
+export const BD_STATUS_OPTIONS = ['PENDING_COY', 'PENDING_S4', 'REPORTED_IFM', 'MERGED', 'COMPLETED', 'REJECTED']
 
 export const BD_STATUS_STYLES: Record<string, string> = {
   PENDING_COY: "bg-yellow-100 text-yellow-800 border-transparent hover:bg-yellow-200 dark:bg-yellow-500/15 dark:text-yellow-400",
   PENDING_S4: "bg-orange-100 text-orange-800 border-transparent hover:bg-orange-200 dark:bg-orange-500/15 dark:text-orange-400",
   REPORTED_IFM: "bg-blue-100 text-blue-800 border-transparent hover:bg-blue-200 dark:bg-blue-500/15 dark:text-blue-400",
+  MERGED: "bg-pink-100 text-pink-800 border-transparent hover:bg-pink-200 dark:bg-pink-500/15 dark:text-pink-400",
   COMPLETED: "bg-green-100 text-green-800 border-transparent hover:bg-green-200 dark:bg-green-500/15 dark:text-green-400",
   REJECTED: "bg-red-100 text-red-800 border-transparent hover:bg-red-200 dark:bg-red-500/15 dark:text-red-400",
   DEFAULT: "bg-secondary text-secondary-foreground border-transparent hover:bg-secondary/80",

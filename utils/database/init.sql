@@ -1,6 +1,6 @@
 -- Create Enums
 CREATE TYPE user_role AS ENUM ('APPROVER', 'ADMIN');
-CREATE TYPE report_status AS ENUM ('PENDING_COY', 'PENDING_S4', 'REPORTED_IFM', 'COMPLETED', 'REJECTED');
+CREATE TYPE report_status AS ENUM ('PENDING_COY', 'PENDING_S4', 'REPORTED_IFM', 'MERGED', 'COMPLETED', 'REJECTED');
 
 -- Create the BarrackDamage Table
 CREATE TABLE barrack_damage (

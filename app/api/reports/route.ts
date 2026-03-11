@@ -7,39 +7,58 @@ export const POST = withApiHandler(async (req: NextRequest) => {
   const body = await req.json();
   const supabaseAdmin = createAdminClient();
 
+  // 1. Generate the shared short ID
   const shortId = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const caseRef = `REQ-${new Date().getFullYear()}-${shortId}`;
+  const year = new Date().getFullYear();
+  
+  // 2. Create matching human-readable references
+  const caseRef = `REQ-${year}-${shortId}`;
+  const incidentRef = `INC-${year}-${shortId}`; 
 
-  const { data, error } = await supabaseAdmin
-    .from("barrack_damage")
-    .insert([
-      {
-        ...body,
-        case_reference: caseRef,
-        status: "PENDING_COY",
-        approved_by_coy: false,
-      },
-    ])
+  // 3. Create the Master Incident with its new reference string
+  const { data: incidentData, error: incidentError } = await supabaseAdmin
+    .from("damage_incident")
+    .insert([{
+      incident_reference: incidentRef,
+      type: body.type,
+      location: body.location,
+      unit_number: body.unit_number,
+      incident_status: "PENDING",
+    }])
     .select()
     .single();
 
-  if (error) {
-    console.error("RAW SUPABASE ERROR:", JSON.stringify(error, null, 2));
-    throw new ApiError(500, "Failed to save the report.", error);
+  if (incidentError) {
+    console.error("INCIDENT CREATION ERROR:", incidentError);
+    throw new ApiError(500, "Failed to create master incident.", incidentError);
   }
 
-  return successResponse(data, 201);
+  const { data: reportData, error: reportError } = await supabaseAdmin
+    .from("barrack_damage")
+    .insert([{
+      ...body,
+      case_reference: caseRef,
+      status: "PENDING_COY",
+      approved_by_coy: false,
+      incident_id: incidentData.id,
+    }])
+    .select()
+    .single();
+
+  if (reportError) {
+    console.error("REPORT CREATION ERROR:", reportError);
+    throw new ApiError(500, "Failed to save the report.", reportError);
+  }
+
+  return successResponse(reportData, 201);
 });
 
 export const GET = withApiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const company = searchParams.get("company");
   const status = searchParams.get("status");
-
-  // flag to bypass pagination
   const fetchAll = searchParams.get("fetchAll") === "true";
 
-  // 1. Setup Pagination Parameters
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "10");
   const from = (page - 1) * limit;
@@ -47,33 +66,23 @@ export const GET = withApiHandler(async (req: NextRequest) => {
 
   const supabase = await createClient();
 
-  // 2. Base query with `{ count: 'exact' }`
+  // JOIN the damage_incident table to get the IFM dates and overall status
   let query = supabase
     .from("barrack_damage")
-    .select("*", { count: "exact" })
+    .select("*, incident:damage_incident(*)", { count: "exact" })
     .order("date_reported", { ascending: false });
 
-  // Apply filters if they are provided
   if (company) query = query.eq("company", company);
   if (status) query = query.eq("status", status);
-
-  // 3. Conditionally apply pagination
-  if (!fetchAll) {
-    query = query.range(from, to);
-  }
+  if (!fetchAll) query = query.range(from, to);
 
   const { data, error, count } = await query;
 
-  if (error) {
-    throw new ApiError(500, "Failed to fetch reports.", error);
-  }
+  if (error) throw new ApiError(500, "Failed to fetch reports.", error);
 
-  // Calculate metadata safely
   const totalRecords = count || 0;
-  // If fetching all, there is technically only 1 "page" containing everything
   const totalPages = fetchAll ? 1 : Math.ceil(totalRecords / limit);
 
-  // 4. Return data along with consistent pagination metadata
   return successResponse({
     reports: data,
     metadata: {
@@ -108,4 +117,57 @@ export const PATCH = withApiHandler(async (req: NextRequest) => {
   }
 
   return successResponse(data, 200);
+});
+
+export const PUT = withApiHandler(async (req: NextRequest) => {
+  const body = await req.json();
+  const { id, incident_id, ...updateData } = body;
+
+  if (!id) {
+    throw new ApiError(400, "Report ID is required for updating.", null);
+  }
+
+  const supabaseAdmin = createAdminClient();
+
+  // 1. Update the individual report
+  const { data: reportData, error: reportError } = await supabaseAdmin
+    .from("barrack_damage")
+    .update({
+      company: updateData.company,
+      damage_tag_placed: updateData.damage_tag_placed,
+      is_urgent: updateData.is_urgent,
+      reported_by: updateData.reported_by,
+      type: updateData.type,
+      location: updateData.location,
+      unit_number: updateData.unit_number,
+      description: updateData.description,
+      image_urls: updateData.image_urls,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (reportError) {
+    console.error("REPORT UPDATE ERROR:", reportError);
+    throw new ApiError(500, "Failed to update the report.", reportError);
+  }
+
+  // 2. Sync the physical location/type changes to the master incident
+  if (incident_id) {
+    const { error: incidentError } = await supabaseAdmin
+      .from("damage_incident")
+      .update({
+        type: updateData.type,
+        location: updateData.location,
+        unit_number: updateData.unit_number,
+      })
+      .eq("id", incident_id);
+
+    if (incidentError) {
+      // We log this but don't fail the whole request, as the report saved successfully
+      console.error("INCIDENT SYNC ERROR:", incidentError);
+    }
+  }
+
+  return successResponse(reportData, 200);
 });
