@@ -80,6 +80,16 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  
+}
+
+:root {
+  --color-pending-coy:  #eab308;
+  --color-pending-s4:   #f97316;
+  --color-reported-ifm: #3b82f6;
+  --color-completed:    #22c55e;
+  --color-rejected:     #ef4444;
+  --color-merged:       #a855f7;
 }
 
 .dark {
@@ -114,6 +124,13 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --color-pending-coy:  #eab308;
+  --color-pending-s4:   #f97316;
+  --color-reported-ifm: #3b82f6;
+  --color-completed:    #22c55e;
+  --color-rejected:     #ef4444;
+  --color-merged:       #a855f7;
 }
 
 @layer base {

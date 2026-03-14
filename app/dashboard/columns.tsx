@@ -48,6 +48,9 @@ export type DamageIncident = {
   ifm_reported_date: string | null
   ifm_target_date: string | null
   repaired_date: string | null
+  block?: string
+  unit_number?: string
+  location?: string
 }
 
 export type BarrackDamage = {
@@ -58,6 +61,7 @@ export type BarrackDamage = {
   damage_tag_placed: boolean
   reported_by: string
   type: string
+  block: string
   location: string
   unit_number: string
   description: string
@@ -75,40 +79,98 @@ export const columns: ColumnDef<BarrackDamage>[] = [
     accessorKey: "case_reference",
     header: "Case Ref",
     enableColumnFilter: false,
+    size: 20,
     cell: ({ row }) => <CaseRefCell row={row} />, 
   },
   {
-    accessorKey: "company", header: "Company",
+    accessorKey: "company", 
+    header: "Company",
+    size: 5,
   },
   {
-    accessorKey: "location", header: "Location",
+    accessorKey: "block",
+    header: "Block",
+    size: 5,
     cell: ({ row }) => (
-      <div className="flex flex-col">
+      <span className="font-medium whitespace-nowrap text-muted-foreground">
+        {row.original.block ? `Blk ${row.original.block}` : "—"}
+      </span>
+    ),
+  },
+  {
+    id: "unit_location", 
+    header: "Unit & Area",
+    size: 10, 
+    accessorFn: (row) => `${row.unit_number} ${row.location}`,
+    filterFn: (row, columnId, filterValue) => {
+      if (!filterValue) return true;
+      
+      const search = filterValue.toLowerCase().trim();
+      const unit = (row.original.unit_number || "").toLowerCase();
+      const area = (row.original.location || "").toLowerCase();
+      
+      // Forgiving match: strips "#" and leading zeros. 
+      // This ensures typing "1-04" successfully matches "#01-04"
+      const normalizedUnit = unit.replace(/^#?0*/, '');
+      const normalizedSearch = search.replace(/^#?0*/, '');
+      
+      return (
+        unit.includes(search) || 
+        area.includes(search) || 
+        normalizedUnit.includes(normalizedSearch) ||
+        `${unit} ${area}`.includes(search)
+      );
+    },
+    cell: ({ row }) => (
+      <div className="flex flex-col gap-0.5">
         <span className="font-medium">{row.original.unit_number}</span>
-        <span className="text-xs text-muted-foreground">{row.getValue("location")}</span>
+        {row.original.location && (
+          <span className="text-xs text-muted-foreground">{row.original.location}</span>
+        )}
       </div>
     ),
   },
-  { accessorKey: "type", header: "Type" },
+  { 
+    accessorKey: "type", 
+    header: "Type",
+    size: 10,
+  },
   {
-    accessorKey: "status", header: "Status",
+    accessorKey: "status", 
+    header: "Status",
+    size: 15,
     cell: ({ row }) => <StatusCell report={row.original} />,
   },
   {
-    accessorKey: "description", header: "Description", enableColumnFilter: false,
-    cell: ({ row }) => <div className="max-w-[200px] truncate text-sm" title={row.getValue("description")}>{row.getValue("description")}</div>,
+    accessorKey: "description", 
+    header: "Description", 
+    enableColumnFilter: false,
+    size: 20,
+    cell: ({ row }) => <DescriptionCell value={row.getValue("description")} />,
   },
   {
-    accessorKey: "date_reported", header: "Date Reported", enableColumnFilter: false,
+    accessorKey: "date_reported", 
+    header: "Date Reported", 
+    enableColumnFilter: false,
+    size: 10,
     cell: ({ row }) => (
-      <div className="flex flex-col">
-        <span>{new Date(row.getValue("date_reported")).toLocaleDateString()}</span>
+      <div className="flex flex-col gap-0.5">
+        <span>
+          {new Date(row.getValue("date_reported")).toLocaleDateString('en-GB', {
+            timeZone: 'Asia/Singapore',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          })}
+        </span>
         <span className="text-xs text-muted-foreground">By: {row.original.reported_by}</span>
       </div>
     ),
   },
   {
-    id: "actions", enableColumnFilter: false,
+    id: "actions", 
+    enableColumnFilter: false,
+    size: 5,
     cell: ({ row }) => <ActionCell report={row.original} isSubRow={row.depth > 0} />,
   },
 ]
@@ -140,7 +202,7 @@ const CaseRefCell = ({ row }: { row: Row<BarrackDamage> }) => {
             {row.getIsExpanded() ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </Button>
         ) : (
-          row.depth === 0 && <div className="w-5" /> // Alignment spacer for top-level rows without children
+          row.depth === 0 && <div className="w-5" /> 
         )}
 
         <span>{report.case_reference}</span>
@@ -198,6 +260,24 @@ const StatusCell = ({ report }: { report: BarrackDamage }) => {
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+const DescriptionCell = ({ value }: { value: string }) => {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div
+      className={cn(
+        "text-sm cursor-pointer transition-all peer",
+        expanded
+          ? "max-w-[200px] whitespace-normal break-words"
+          : "max-w-[200px] truncate hover:whitespace-normal hover:max-w-[200px] hover:break-words hover:overflow-visible"
+      )}
+      onClick={() => setExpanded(prev => !prev)}
+    >
+      {value}
+    </div>
   )
 }
 

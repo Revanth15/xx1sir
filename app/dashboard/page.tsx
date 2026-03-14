@@ -1,6 +1,7 @@
 import { DataTable } from "./data-table"
 import { columns } from "./columns"
 import { createClient } from '@/utils/supabase/server'
+import { DashboardStats } from "./dashboard-stats";
 
 async function getReports(params: Record<string, string | undefined>) {
   const page = Number(params.page) || 1;
@@ -39,6 +40,19 @@ async function getReports(params: Record<string, string | undefined>) {
   if (params.location) query = query.ilike('location', `%${params.location}%`);
   if (params.type) query = query.ilike('type', `%${params.type}%`);
   if (params.status) query = query.eq('status', params.status.toUpperCase());
+
+  if (params.block) {
+    query = query.eq('block', params.block);
+  }
+
+  if (params.unit_location) {
+    const cleanSearch = params.unit_location.replace(/^[#0]+/, '');
+    query = query.or(`unit_number.ilike.%${cleanSearch}%,location.ilike.%${cleanSearch}%`);
+  }
+
+  if (params.urgent === 'true') {
+    query = query.eq('is_urgent', true);
+  }
   
   const { data, error, count } = await query;
 
@@ -80,6 +94,8 @@ export default async function DashboardPage({
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-5">Barrack Damages Dashboard</h1>
+
+      <DashboardStats />
       <DataTable 
         columns={columns} 
         data={reports} 

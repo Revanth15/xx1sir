@@ -1,13 +1,16 @@
 import { createClient } from "@/utils/supabase/server";
 import { StatusChart } from "./status-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClipboardList, Timer, AlertTriangle, Activity } from "lucide-react";
 
 export async function DashboardStats() {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("barrack_damage")
-    .select("status, date_reported, repaired_date, is_urgent");
+    .select(
+      "status, date_reported, is_urgent, incident:damage_incident(repaired_date)"
+    );
 
   if (error || !data) {
     console.error("Failed to fetch stats:", error);
@@ -28,10 +31,15 @@ export async function DashboardStats() {
     const status = report.status || "UNKNOWN";
     statusCounts[status] = (statusCounts[status] || 0) + 1;
 
-    const isCompleted = status === "COMPLETED" || status === "REJECTED";
+    const isClosed =
+      status === "COMPLETED" || status === "REJECTED" || status === "MERGED";
     const reportedDate = new Date(report.date_reported);
 
-    if (!isCompleted) {
+    const incidentData = Array.isArray(report.incident)
+      ? report.incident[0]
+      : report.incident;
+
+    if (!isClosed) {
       outstanding++;
 
       if (report.is_urgent) urgentOutstanding++;
@@ -40,9 +48,9 @@ export async function DashboardStats() {
       if (ageMs > twentyFiveDaysMs) {
         overdue25++;
       }
-    } else if (report.repaired_date) {
+    } else if (status === "COMPLETED" && incidentData?.repaired_date) {
       totalCompleted++;
-      const repairedDate = new Date(report.repaired_date);
+      const repairedDate = new Date(incidentData.repaired_date);
       totalDurationMs += repairedDate.getTime() - reportedDate.getTime();
     }
   });
@@ -59,65 +67,84 @@ export async function DashboardStats() {
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8 items-stretch">
-      <Card className="flex flex-col">
+      <Card className="flex flex-col hover:border-border/80 transition-colors">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
             Outstanding Reports
           </CardTitle>
+          <ClipboardList className="h-4 w-4 text-muted-foreground/70" />
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold">{outstanding}</span>
-            {overdue25 > 0 && (
-              <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
-                {overdue25} Overdue (&gt;25 Days)
+        <CardContent className="flex flex-1 flex-col justify-center">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-bold tracking-tight">
+                {outstanding}
               </span>
-            )}
+              {overdue25 > 0 && (
+                <span className="text-[10px] font-semibold text-red-600 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 uppercase tracking-wider">
+                  {overdue25} Overdue
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tickets not yet resolved
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Not yet completed
-          </p>
         </CardContent>
       </Card>
 
-      {/* 2. Avg Completion Time */}
-      <Card className="flex flex-col">
+      <Card className="flex flex-col hover:border-border/80 transition-colors">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
             Avg. Completion Time
           </CardTitle>
+          <Timer className="h-4 w-4 text-muted-foreground/70" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{avgDurationDays} days</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Based on {totalCompleted} completed cases
-          </p>
+        <CardContent className="flex flex-1 flex-col justify-center">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline gap-1">
+              <span className="text-5xl font-bold tracking-tight">
+                {avgDurationDays}
+              </span>
+              <span className="text-sm font-medium text-muted-foreground">
+                days
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Based on {totalCompleted} completed cases
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      {/* 3. Urgent & Pending */}
-      <Card className="flex flex-col">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
+      <Card className="flex flex-col border-orange-500/20 bg-orange-500/5 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-red-500 opacity-80" />
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-5">
+          <CardTitle className="text-sm font-medium text-orange-600 dark:text-orange-400">
             Urgent & Pending
           </CardTitle>
+          <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-orange-500">
-            {urgentOutstanding}
+        <CardContent className="flex flex-1 flex-col justify-center">
+          <div className="flex flex-col gap-1">
+            <span className="text-5xl font-bold tracking-tight text-orange-600 dark:text-orange-400">
+              {urgentOutstanding}
+            </span>
+            <p className="text-xs text-orange-600/70 dark:text-orange-400/70">
+              Critical outstanding issues
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Critical outstanding issues
-          </p>
         </CardContent>
       </Card>
 
-      {/* 4. Chart shifted into the 4th grid spot */}
-      <Card className="flex flex-col">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 px-4">
-          <CardTitle className="text-sm font-medium">Report Status</CardTitle>
+      <Card className="flex flex-col hover:border-border/80 transition-colors h-[160px]">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 mb-[-20px]">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Report Status
+          </CardTitle>
+          <Activity className="h-4 w-4 text-muted-foreground/70" />
         </CardHeader>
-        <CardContent className="flex-1 pb-2 pt-0 px-2 flex flex-col justify-center">
+        <CardContent className="">
           <StatusChart data={chartData} />
         </CardContent>
       </Card>
