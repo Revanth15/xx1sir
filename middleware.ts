@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
   
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup')
   const isAdminRoute = pathname.startsWith('/admin')
-
+//  || pathname == "/assets" || pathname == "/assets/new"
   // Check if the route exactly matches a public route OR starts with a public prefix
   const isPublicRoute = publicRoutes.includes(pathname) || 
                         publicPrefixes.some(prefix => pathname.startsWith(prefix))

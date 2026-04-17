@@ -23,6 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  readCachedInspectionAsset,
+  writeCachedInspectionAsset,
+} from "@/utils/asset-inspection-cache";
 import { notify } from "@/utils/toast";
 import type { AssetWithStatus } from "@/lib/types/assets";
 
@@ -41,8 +45,10 @@ type FailedReportPrefill = {
 
 export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
   const router = useRouter();
-  const [asset, setAsset] = useState<AssetWithStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [asset, setAsset] = useState<AssetWithStatus | null>(() =>
+    readCachedInspectionAsset(assetCode)
+  );
+  const [loading, setLoading] = useState(() => !readCachedInspectionAsset(assetCode));
   const [submitting, setSubmitting] = useState(false);
   const [serviceabilityStatus, setServiceabilityStatus] = useState<"SERVICEABLE" | "UNSERVICEABLE">("SERVICEABLE");
   const [notes, setNotes] = useState("");
@@ -54,9 +60,20 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
     let cancelled = false;
 
     async function loadAsset() {
+      const cachedAsset = readCachedInspectionAsset(assetCode);
+      if (cachedAsset && !cancelled) {
+        setAsset(cachedAsset);
+        setLoading(false);
+      }
+
       try {
-        setLoading(true);
-        const response = await fetch(`/api/assets/${encodeURIComponent(assetCode)}`);
+        if (!cachedAsset) {
+          setLoading(true);
+        }
+
+        const response = await fetch(
+          `/api/assets/${encodeURIComponent(assetCode)}/inspection-context`
+        );
         const result = await response.json();
 
         if (!response.ok) {
@@ -65,9 +82,10 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
 
         if (!cancelled) {
           setAsset(result.data.asset);
+          writeCachedInspectionAsset(result.data.asset);
         }
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && !cachedAsset) {
           notify.error(error instanceof Error ? error.message : "Failed to load asset");
         }
       } finally {
@@ -152,7 +170,8 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
       }
 
       notify.success("Inspection saved.");
-      router.push(`/assets/${encodeURIComponent(asset.asset_code)}`);
+      router.push(`/assets/scan`);
+      // router.push(`/assets/${encodeURIComponent(asset.asset_code)}`);
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "Failed to save inspection");
     } finally {
@@ -192,16 +211,16 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Asset Snapshot</CardTitle>
+          <CardTitle>Asset</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div>
+        <CardContent className="grid gap-2 grid-cols-2">
+          <div className="col-span-1">
             <p className="text-sm text-muted-foreground">Type</p>
             <p className="mt-1 font-medium">
               {asset.asset_type_config?.label ?? asset.asset_type_code}
             </p>
           </div>
-          <div>
+          <div className="col-span-1">
             <p className="text-sm text-muted-foreground">Current Status</p>
             <div className="mt-2">
               <AssetStatusBadge status={asset.displayed_status} />
@@ -219,51 +238,55 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
           <CardTitle>Inspection Form</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label>Serviceability Status</Label>
-              <Select
-                value={serviceabilityStatus}
-                onValueChange={(value) =>
-                  setServiceabilityStatus(value as "SERVICEABLE" | "UNSERVICEABLE")
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SERVICEABLE">Serviceable</SelectItem>
-                  <SelectItem value="UNSERVICEABLE">Unserviceable</SelectItem>
-                </SelectContent>
-              </Select>
+        <form onSubmit={handleSubmit} className="space-y-5">
+
+            <div className="grid grid-cols-2 gap-5">
+              
+              <div className="space-y-2 col-span-2">
+                <Label>Serviceability Status</Label>
+                <Select
+                  value={serviceabilityStatus}
+                  onValueChange={(value) =>
+                    setServiceabilityStatus(value as "SERVICEABLE" | "UNSERVICEABLE")
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SERVICEABLE">Serviceable</SelectItem>
+                    <SelectItem value="UNSERVICEABLE">Unserviceable</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {checklistFields.map(([fieldKey, fieldSchema]) => {
+                if (fieldSchema.type !== "boolean") return null;
+
+                return (
+                  <div className="space-y-2 ml-2" key={fieldKey}>
+                    <Label>{fieldSchema.label || fieldKey.replace(/_/g, " ")}</Label>
+                    <Select
+                      value={checkResults[fieldKey] || undefined}
+                      onValueChange={(value) =>
+                        setCheckResults((current) => ({
+                          ...current,
+                          [fieldKey]: value as "YES" | "NO",
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select result" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="YES">Yes</SelectItem>
+                        <SelectItem value="NO">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
             </div>
-
-            {checklistFields.map(([fieldKey, fieldSchema]) => {
-              if (fieldSchema.type !== "boolean") return null;
-
-              return (
-                <div className="space-y-2" key={fieldKey}>
-                  <Label>{fieldSchema.label || fieldKey.replace(/_/g, " ")}</Label>
-                  <Select
-                    value={checkResults[fieldKey] || undefined}
-                    onValueChange={(value) =>
-                      setCheckResults((current) => ({
-                        ...current,
-                        [fieldKey]: value as "YES" | "NO",
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select result" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="YES">Yes</SelectItem>
-                      <SelectItem value="NO">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              );
-            })}
 
             <div className="space-y-2">
               <Label htmlFor="inspection-notes">Notes</Label>
@@ -283,11 +306,12 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push(`/assets/${encodeURIComponent(asset.asset_code)}`)}
+                onClick={() => router.push(`/assets/scan`)}
               >
                 Cancel
               </Button>
             </div>
+
           </form>
         </CardContent>
       </Card>

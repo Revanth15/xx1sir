@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { writeCachedInspectionAsset } from "@/utils/asset-inspection-cache";
 import { notify } from "@/utils/toast";
 
 type DetailedQrScanResult = {
@@ -92,12 +93,15 @@ export function AssetScanPage() {
       }
 
       const assetCode = result.data.asset.asset_code as string;
+      const inspectionPath = `/assets/${encodeURIComponent(assetCode)}/inspect`;
+      writeCachedInspectionAsset(result.data.asset);
+      router.prefetch(inspectionPath);
       notify.dismiss(toastId);
       notify.success(
         source === "scanner" ? "Scan successful" : "Asset found",
         `Opening inspection for ${assetCode}.`
       );
-      router.push(`/assets/${encodeURIComponent(assetCode)}/inspect`);
+      router.push(inspectionPath);
     } catch (error) {
       notify.dismiss(toastId);
       throw error;
