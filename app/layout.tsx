@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { createClient } from "@/utils/supabase/server";
 import { AuthProvider } from "@/utils/AuthProvider";
-import { Toaster } from "sonner";
 import { AppSidebar } from "@/components/nav";
+import { Toaster } from "@/components/ui/sonner";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 export const metadata: Metadata = {

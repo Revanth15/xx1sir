@@ -1,6 +1,11 @@
 import { toast } from 'sonner'
 
 export const notify = {
+  loading: (title: string, description?: string) => {
+    return toast.loading(title, {
+      description,
+    })
+  },
   success: (title: string, description?: string) => {
     toast.success(title, {
       description,
@@ -20,6 +25,9 @@ export const notify = {
     toast.warning(title, {
       description,
     })
+  },
+  dismiss: (toastId?: string | number) => {
+    toast.dismiss(toastId)
   },
   promise: (
     promise: Promise<unknown>,
