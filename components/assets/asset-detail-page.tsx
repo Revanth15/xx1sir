@@ -79,7 +79,14 @@ export function AssetDetailPage({ assetCode }: AssetDetailPageProps) {
   }
 
   if (!asset) {
-    return <div className="container mx-auto px-4 py-10 text-muted-foreground">Asset not found.</div>;
+    return (
+      <div className="container mx-auto space-y-4 px-4 py-10">
+        <Button asChild variant="outline" className="w-fit">
+          <Link href="/assets">Back to Assets</Link>
+        </Button>
+        <div className="text-muted-foreground">Asset not found.</div>
+      </div>
+    );
   }
 
   const linkedReportByInspectionId = new Map(
@@ -103,6 +110,9 @@ export function AssetDetailPage({ assetCode }: AssetDetailPageProps) {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="w-fit">
+            <Link href="/assets">Back to Assets</Link>
+          </Button>
           <Button asChild>
             <Link href={`/assets/${encodeURIComponent(asset.asset_code)}/inspect`}>
               Log Inspection
@@ -282,7 +292,7 @@ export function AssetDetailPage({ assetCode }: AssetDetailPageProps) {
       </div>
 
       <Dialog open={editing} onOpenChange={setEditing}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="!max-w-[50vw] !w-[50vw]">
           <DialogHeader>
             <DialogTitle>Edit Asset</DialogTitle>
             <DialogDescription>

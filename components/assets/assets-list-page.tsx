@@ -592,7 +592,7 @@ export function AssetsListPage() {
               <TableHeader>
                 <TableRow>
                   {profile?.role === "admin" ? (
-                    <TableHead className="w-6">
+                    <TableHead className="w-8">
                       <Checkbox
                       checked={allVisibleSelected}
                       onCheckedChange={toggleSelectAllVisible}
