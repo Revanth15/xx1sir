@@ -11,6 +11,9 @@ import type {
 } from "@/lib/types/assets";
 
 export const SINGAPORE_TIME_ZONE = "Asia/Singapore";
+const ASSET_TYPE_QR_TOKEN_MAP: Record<string, string> = {
+  WATERCOOLER: "WC",
+};
 
 const SINGAPORE_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: SINGAPORE_TIME_ZONE,
@@ -34,7 +37,7 @@ export function generateAssetCode(
     unitCode,
     blockCode,
     levelCode,
-    assetTypeCode,
+    ASSET_TYPE_QR_TOKEN_MAP[normalizeAssetCodePart(assetTypeCode)] ?? assetTypeCode,
     serialNumber,
   ]
     .map(normalizeAssetCodePart)
@@ -240,4 +243,19 @@ export function isServiceabilityStatus(
   value: string
 ): value is AssetServiceabilityStatus {
   return value === "SERVICEABLE" || value === "UNSERVICEABLE";
+}
+
+export function generateBulkSerials(serialStart: string, quantity: number) {
+  const normalizedStart = normalizeAssetCodePart(serialStart);
+
+  if (!/^\d+$/.test(normalizedStart)) {
+    throw new Error("Bulk create currently supports numeric serial starts only.");
+  }
+
+  const width = normalizedStart.length;
+  const startNumber = Number(normalizedStart);
+
+  return Array.from({ length: quantity }, (_, index) =>
+    String(startNumber + index).padStart(width, "0")
+  );
 }

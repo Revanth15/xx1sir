@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { printAssetLabels } from "@/utils/asset-print";
 
 type AssetQrLabelProps = {
   assetCode: string | null;
@@ -33,7 +34,7 @@ export function AssetQrLabel({
       const dataUrl = await QRCode.toDataURL(assetCode, {
         errorCorrectionLevel: "M",
         margin: 1,
-        width: 320,
+        width: 240,
       });
 
       if (!cancelled) {
@@ -57,56 +58,8 @@ export function AssetQrLabel({
   };
 
   const printQr = () => {
-    if (!qrDataUrl || !assetCode) return;
-
-    const printWindow = window.open("", "_blank", "width=640,height=720");
-    if (!printWindow) return;
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${assetCode}</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              display: grid;
-              place-items: center;
-              margin: 0;
-              min-height: 100vh;
-            }
-            .label {
-              border: 1px solid #ddd;
-              padding: 24px;
-              width: 320px;
-              text-align: center;
-            }
-            img {
-              width: 100%;
-              height: auto;
-            }
-            h1 {
-              margin: 16px 0 8px;
-              font-size: 20px;
-              line-height: 1.2;
-            }
-            p {
-              margin: 0;
-              color: #555;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="label">
-            <img src="${qrDataUrl}" alt="${assetCode}" />
-            <h1>${assetCode}</h1>
-            ${subtitle ? `<p>${subtitle}</p>` : ""}
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    if (!assetCode) return;
+    void printAssetLabels([{ assetCode, subtitle }]);
   };
 
   return (
@@ -122,10 +75,10 @@ export function AssetQrLabel({
                 <img
                   src={qrDataUrl}
                   alt={assetCode}
-                  className="mx-auto h-auto w-full max-w-64"
+                  className="mx-auto h-[100px] w-[100px]"
                 />
               ) : (
-                <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+                <div className="flex h-[100px] items-center justify-center text-sm text-muted-foreground">
                   Generating QR preview...
                 </div>
               )}

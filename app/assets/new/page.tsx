@@ -1,5 +1,7 @@
 import { AssetForm } from "@/components/assets/asset-form";
+import { BulkAssetForm } from "@/components/assets/bulk-asset-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requirePageAdmin } from "@/lib/server-auth";
 
 export default async function NewAssetPage() {
@@ -14,14 +16,28 @@ export default async function NewAssetPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Asset Setup</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AssetForm mode="create" />
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="single">
+        <TabsList>
+          <TabsTrigger value="single">Single Asset</TabsTrigger>
+          <TabsTrigger value="bulk">Bulk Asset</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="single">
+          <Card>
+            <CardContent>
+              <AssetForm mode="create" />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="bulk">
+          <Card>
+            <CardContent>
+              <BulkAssetForm />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

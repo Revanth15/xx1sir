@@ -174,7 +174,7 @@ export function AssetScanPage() {
                 id="manual-asset-code"
                 value={manualCode}
                 onChange={(event) => setManualCode(event.target.value.toUpperCase())}
-                placeholder="UNIT-BLOCK-LEVEL-OBJECT-SERIAL"
+                placeholder="1SIR-265-1-WC-017"
               />
             </div>
             <Button type="submit">Find Asset</Button>

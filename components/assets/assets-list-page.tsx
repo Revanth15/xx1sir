@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { SITE_LOCATION_CONFIG } from "@/lib/defaults";
 import type { AssetTypeConfig, AssetWithStatus } from "@/lib/types/assets";
+import { printAssetLabels } from "@/utils/asset-print";
 import { useAuth } from "@/utils/AuthProvider";
 import { notify } from "@/utils/toast";
 import { formatDueDate } from "@/utils/assets";
@@ -36,6 +37,7 @@ export function AssetsListPage() {
   const [assets, setAssets] = useState<AssetWithStatus[]>([]);
   const [assetTypeConfigs, setAssetTypeConfigs] = useState<AssetTypeConfig[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     assetType: ALL,
     unit: ALL,
@@ -98,6 +100,41 @@ export function AssetsListPage() {
     [assetTypeConfigs]
   );
 
+  const selectedAssets = useMemo(
+    () => assets.filter((asset) => selectedAssetIds.includes(asset.id)),
+    [assets, selectedAssetIds]
+  );
+
+  const allVisibleSelected =
+    assets.length > 0 && assets.every((asset) => selectedAssetIds.includes(asset.id));
+
+  const toggleAssetSelection = (assetId: string) => {
+    setSelectedAssetIds((current) =>
+      current.includes(assetId)
+        ? current.filter((id) => id !== assetId)
+        : [...current, assetId]
+    );
+  };
+
+  const toggleSelectAllVisible = () => {
+    setSelectedAssetIds((current) =>
+      allVisibleSelected ? current.filter((id) => !assets.some((asset) => asset.id === id)) : assets.map((asset) => asset.id)
+    );
+  };
+
+  const handlePrintSelected = async () => {
+    try {
+      await printAssetLabels(
+        selectedAssets.map((asset) => ({
+          assetCode: asset.asset_code,
+          subtitle: asset.display_name || assetTypeLabelMap.get(asset.asset_type_code) || null,
+        }))
+      );
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : "Failed to print selected labels");
+    }
+  };
+
   return (
     <div className="container mx-auto space-y-6 px-4 py-6 sm:px-6 sm:py-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -112,9 +149,21 @@ export function AssetsListPage() {
             <Link href="/assets/scan">Scan Asset</Link>
           </Button>
           {profile?.role === "admin" ? (
-            <Button asChild>
-              <Link href="/assets/new">Create Asset</Link>
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={selectedAssets.length === 0}
+                onClick={handlePrintSelected}
+              >
+                {selectedAssets.length > 0
+                  ? `Print Selected (${selectedAssets.length})`
+                  : "Print Selected"}
+              </Button>
+              <Button asChild>
+                <Link href="/assets/new">Create Asset</Link>
+              </Button>
+            </>
           ) : null}
         </div>
       </div>
@@ -274,6 +323,16 @@ export function AssetsListPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {profile?.role === "admin" ? (
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleSelectAllVisible}
+                        aria-label="Select all visible assets"
+                      />
+                    </TableHead>
+                  ) : null}
                   <TableHead>Asset Code</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Location</TableHead>
@@ -285,6 +344,16 @@ export function AssetsListPage() {
               <TableBody>
                 {assets.map((asset) => (
                   <TableRow key={asset.id}>
+                    {profile?.role === "admin" ? (
+                      <TableCell className="w-12 align-top">
+                        <input
+                          type="checkbox"
+                          checked={selectedAssetIds.includes(asset.id)}
+                          onChange={() => toggleAssetSelection(asset.id)}
+                          aria-label={`Select ${asset.asset_code}`}
+                        />
+                      </TableCell>
+                    ) : null}
                     <TableCell className="font-mono">
                       <Link href={`/assets/${encodeURIComponent(asset.asset_code)}`} className="font-semibold hover:underline">
                         {asset.asset_code}
@@ -325,6 +394,27 @@ export function AssetsListPage() {
           )}
         </CardContent>
       </Card>
+
+      {profile?.role === "admin" && assets.length > 0 ? (
+        <div className="flex items-center justify-between rounded-xl border px-4 py-3 text-sm">
+          <p className="text-muted-foreground">
+            {selectedAssets.length} of {assets.length} visible assets selected for bulk print.
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={toggleSelectAllVisible}>
+              {allVisibleSelected ? "Clear Visible Selection" : "Select All Visible"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={selectedAssets.length === 0}
+              onClick={handlePrintSelected}
+            >
+              Print Selected Labels
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

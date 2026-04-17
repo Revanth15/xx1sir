@@ -86,6 +86,18 @@ export interface UpdateAssetRequest extends CreateAssetRequest {
   is_active?: boolean;
 }
 
+export interface BulkCreateAssetsRequest {
+  unit_code: string;
+  block_code: string;
+  level_code: string;
+  asset_type_code: string;
+  serial_start: string;
+  quantity: number;
+  display_name_prefix?: string;
+  location_note?: string;
+  is_active?: boolean;
+}
+
 export interface CreateInspectionRequest {
   serviceability_status: AssetServiceabilityStatus;
   notes?: string;

@@ -49,12 +49,7 @@ export const BD_ROLES_REF = [
 
 // Asset Management Defaults
 export const ASSET_UNITS = [
-  { code: 'ALPHA', label: 'Alpha Company' },
-  { code: 'BRAVO', label: 'Bravo Company' },
-  { code: 'CHARLIE', label: 'Charlie Company' },
-  { code: 'SUPPORT', label: 'Support Company' },
-  { code: 'MSC', label: 'MSC' },
-  { code: 'HQ', label: 'HQ' },
+  { code: '1SIR', label: '1 SIR' },
 ] as const;
 
 export const ASSET_BLOCKS = [
