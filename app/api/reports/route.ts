@@ -3,9 +3,15 @@ import { withApiHandler, successResponse, ApiError } from "../../../utils/api";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 
-export const POST = withApiHandler(async (req: NextRequest) => {
-  const body = await req.json();
-  const supabaseAdmin = createAdminClient();
+export const POST = withApiHandler(
+  async (
+    req: NextRequest,
+    _context: { params: Promise<Record<string, string>> }
+  ) => {
+    const body = await req.json();
+    const supabaseAdmin = createAdminClient();
+    const assetId = body.asset_id || null;
+    const sourceInspectionId = body.source_inspection_id || null;
 
   const shortId = Math.random().toString(36).substring(2, 6).toUpperCase();
   const year = new Date().getFullYear();
@@ -35,6 +41,8 @@ export const POST = withApiHandler(async (req: NextRequest) => {
     .from("barrack_damage")
     .insert([{
       ...body, 
+      asset_id: assetId,
+      source_inspection_id: sourceInspectionId,
       case_reference: caseRef,
       status: "PENDING_COY",
       approved_by_coy: false,
@@ -48,18 +56,34 @@ export const POST = withApiHandler(async (req: NextRequest) => {
     throw new ApiError(500, "Failed to save the report.", reportError);
   }
 
-  return successResponse(reportData, 201);
-});
+  if (sourceInspectionId) {
+    const { error: inspectionLinkError } = await supabaseAdmin
+      .from("asset_inspections")
+      .update({ linked_report_id: reportData.id })
+      .eq("id", sourceInspectionId);
 
-export const GET = withApiHandler(async (req: NextRequest) => {
-  const { searchParams } = new URL(req.url);
-  const company = searchParams.get("company");
-  const status = searchParams.get("status");
-  const block = searchParams.get("block");
-  const search = searchParams.get("search");
-  const unitLocation = searchParams.get("unit_location");
-  const urgent = searchParams.get("urgent");
-  const fetchAll = searchParams.get("fetchAll") === "true";
+    if (inspectionLinkError) {
+      console.error("INSPECTION REPORT LINK ERROR:", inspectionLinkError);
+    }
+  }
+
+    return successResponse(reportData, 201);
+  }
+);
+
+export const GET = withApiHandler(
+  async (
+    req: NextRequest,
+    _context: { params: Promise<Record<string, string>> }
+  ) => {
+    const { searchParams } = new URL(req.url);
+    const company = searchParams.get("company");
+    const status = searchParams.get("status");
+    const block = searchParams.get("block");
+    const search = searchParams.get("search");
+    const unitLocation = searchParams.get("unit_location");
+    const urgent = searchParams.get("urgent");
+    const fetchAll = searchParams.get("fetchAll") === "true";
 
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "10");
@@ -97,20 +121,25 @@ export const GET = withApiHandler(async (req: NextRequest) => {
   const totalRecords = count || 0;
   const totalPages = fetchAll ? 1 : Math.ceil(totalRecords / limit);
 
-  return successResponse({
-    reports: data,
-    metadata: {
-      total: totalRecords,
-      page: fetchAll ? 1 : page,
-      limit: fetchAll ? totalRecords : limit,
-      totalPages,
-    },
-  });
-});
+    return successResponse({
+      reports: data,
+      metadata: {
+        total: totalRecords,
+        page: fetchAll ? 1 : page,
+        limit: fetchAll ? totalRecords : limit,
+        totalPages,
+      },
+    });
+  }
+);
 
-export const PATCH = withApiHandler(async (req: NextRequest) => {
-  const body = await req.json();
-  const { id, status } = body;
+export const PATCH = withApiHandler(
+  async (
+    req: NextRequest,
+    _context: { params: Promise<Record<string, string>> }
+  ) => {
+    const body = await req.json();
+    const { id, status } = body;
 
   if (!id || !status) {
     throw new ApiError(400, "Report ID and new status are required.", null);
@@ -130,12 +159,17 @@ export const PATCH = withApiHandler(async (req: NextRequest) => {
     throw new ApiError(500, "Failed to update the report status.", error);
   }
 
-  return successResponse(data, 200);
-});
+    return successResponse(data, 200);
+  }
+);
 
-export const PUT = withApiHandler(async (req: NextRequest) => {
-  const body = await req.json();
-  const { id, incident_id, ...updateData } = body;
+export const PUT = withApiHandler(
+  async (
+    req: NextRequest,
+    _context: { params: Promise<Record<string, string>> }
+  ) => {
+    const body = await req.json();
+    const { id, incident_id, ...updateData } = body;
 
   if (!id) {
     throw new ApiError(400, "Report ID is required for updating.", null);
@@ -182,5 +216,6 @@ export const PUT = withApiHandler(async (req: NextRequest) => {
     }
   }
 
-  return successResponse(reportData, 200);
-});
+    return successResponse(reportData, 200);
+  }
+);

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { ColumnDef, Row } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
@@ -40,6 +40,38 @@ import { Input } from "@/components/ui/input"
 import DamageReportForm from "../submit-report/page"
 import { BD_STATUS_OPTIONS, BD_STATUS_STYLES } from "@/lib/defaults"
 import { toast } from "sonner"
+
+const SINGAPORE_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Singapore",
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+})
+
+const SINGAPORE_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Singapore",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+
+function getSingaporeDayStamp(value: string | number | Date) {
+  const [year, month, day] = SINGAPORE_DAY_FORMATTER
+    .format(new Date(value))
+    .split("-")
+    .map(Number)
+
+  return Date.UTC(year, month - 1, day)
+}
+
+function getDaysSinceReported(dateReported: string, nowValue: string | number | Date = new Date()) {
+  const todayStamp = getSingaporeDayStamp(nowValue)
+  const reportedStamp = getSingaporeDayStamp(dateReported)
+  return Math.max(
+    0,
+    Math.floor((todayStamp - reportedStamp) / (1000 * 60 * 60 * 24))
+  )
+}
 
 export type DamageIncident = {
   id: string
@@ -146,7 +178,7 @@ export const columns: ColumnDef<BarrackDamage>[] = [
     header: "Description", 
     enableColumnFilter: false,
     size: 20,
-    cell: ({ row }) => <DescriptionCell value={row.getValue("description")} />,
+    cell: ({ row }) => <DescriptionCell value={String(row.getValue("description") ?? "")} />,
   },
   {
     accessorKey: "date_reported", 
@@ -156,13 +188,9 @@ export const columns: ColumnDef<BarrackDamage>[] = [
     cell: ({ row }) => (
       <div className="flex flex-col gap-0.5">
         <span>
-          {new Date(row.getValue("date_reported")).toLocaleDateString('en-GB', {
-            timeZone: 'Asia/Singapore',
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          })}
+          {SINGAPORE_DATE_FORMATTER.format(new Date(String(row.getValue("date_reported"))))}
         </span>
+        <DaysSinceReported dateReported={String(row.getValue("date_reported"))} />
         <span className="text-xs text-muted-foreground">By: {row.original.reported_by}</span>
       </div>
     ),
@@ -186,39 +214,58 @@ const CaseRefCell = ({ row }: { row: Row<BarrackDamage> }) => {
   }
 
   return (
-    <div className="flex flex-col gap-1 font-medium">
-      <div className="flex items-center gap-1">
+    <div className="flex min-w-[12rem] flex-col gap-1 font-medium">
+      <div className="flex flex-wrap items-center gap-1">
         {/* If it's a stacked item, show a threaded L-arrow */}
-        {row.depth > 0 && <CornerDownRight className="h-4 w-4 text-muted-foreground mr-1" />}
+        {row.depth > 0 && <CornerDownRight className="mr-1 h-4 w-4 shrink-0 text-muted-foreground" />}
         
         {/* Expand/Collapse Button for Master reports that have duplicates */}
         {row.getCanExpand() ? (
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-5 w-5 p-0 hover:bg-muted" 
+            className="h-5 w-5 shrink-0 p-0 hover:bg-muted" 
             onClick={row.getToggleExpandedHandler()}
           >
             {row.getIsExpanded() ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </Button>
         ) : (
-          row.depth === 0 && <div className="w-5" /> 
+          row.depth === 0 && <div className="w-5 shrink-0" /> 
         )}
 
-        <span>{report.case_reference}</span>
+        <span className="break-all leading-tight">{report.case_reference}</span>
         
-        <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-muted" onClick={onCopy} title="Copy Case Reference">
+        <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 hover:bg-muted" onClick={onCopy} title="Copy Case Reference">
           {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
         </Button>
         
         {/* If this row has stacked items, show a pill indicating how many */}
         {row.getCanExpand() && (
-           <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-purple-100 text-purple-800 hover:bg-purple-100">
+           <Badge variant="secondary" className="h-5 shrink-0 bg-purple-100 px-1.5 text-[10px] text-purple-800 hover:bg-purple-100">
              +{row.original.subRows?.length} Merged
            </Badge>
         )}
       </div>
     </div>
+  )
+}
+
+const DaysSinceReported = ({ dateReported }: { dateReported: string }) => {
+  const [now, setNow] = useState(() => Date.now())
+  const daysSince = getDaysSinceReported(dateReported, now)
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now())
+    }, 60 * 60 * 1000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
+
+  return (
+    <span className="text-xs text-muted-foreground">
+      {daysSince} {daysSince === 1 ? "day" : "days"} since reported
+    </span>
   )
 }
 
@@ -283,7 +330,7 @@ const DescriptionCell = ({ value }: { value: string }) => {
 
 const ActionCell = ({ report, isSubRow }: { report: BarrackDamage, isSubRow: boolean }) => {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showMergeDialog, setShowMergeDialog] = useState(false)
@@ -314,9 +361,9 @@ const ActionCell = ({ report, isSubRow }: { report: BarrackDamage, isSubRow: boo
         router.refresh()
       })
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error merging report:", error)
-      toast.error(error.message)
+      toast.error(error instanceof Error ? error.message : "Failed to merge report")
     }
   }
 

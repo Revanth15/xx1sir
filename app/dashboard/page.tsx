@@ -1,87 +1,10 @@
+import Link from "next/link"
 import { DataTable } from "./data-table"
 import { columns } from "./columns"
-import { createClient } from '@/utils/supabase/server'
 import { DashboardStats } from "./dashboard-stats";
-
-async function getReports(params: Record<string, string | undefined>) {
-  const page = Number(params.page) || 1;
-  const limit = 10;
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-
-  const supabase = await createClient();
-
-  // 1. Fetch Primary reports AND their nested incident data, 
-  // including ALL reports linked to that incident (the duplicates)
-  let query = supabase
-    .from('barrack_damage')
-    .select(`
-      *,
-      incident:damage_incident (
-        *,
-        barrack_damage (*)
-      )
-    `, { count: 'exact' })
-    // Hide merged reports from the top-level view so they can be stacked!
-    .neq('status', 'MERGED') 
-    .order('date_reported', { ascending: false })
-    .range(from, to);
-
-  // --- GLOBAL SEARCH ---
-  if (params.search) {
-    const searchTerm = `%${params.search}%`;
-    query = query.or(
-      `case_reference.ilike.${searchTerm},description.ilike.${searchTerm},location.ilike.${searchTerm},unit_number.ilike.${searchTerm},company.ilike.${searchTerm},type.ilike.${searchTerm}`
-    );
-  }
-
-  // --- COLUMN SPECIFIC FILTERS ---
-  if (params.company) query = query.ilike('company', `%${params.company}%`);
-  if (params.location) query = query.ilike('location', `%${params.location}%`);
-  if (params.type) query = query.ilike('type', `%${params.type}%`);
-  if (params.status) query = query.eq('status', params.status.toUpperCase());
-
-  if (params.block) {
-    query = query.eq('block', params.block);
-  }
-
-  if (params.unit_location) {
-    const cleanSearch = params.unit_location.replace(/^[#0]+/, '');
-    query = query.or(`unit_number.ilike.%${cleanSearch}%,location.ilike.%${cleanSearch}%`);
-  }
-
-  if (params.urgent === 'true') {
-    query = query.eq('is_urgent', true);
-  }
-  
-  const { data, error, count } = await query;
-
-  if (error) {
-    console.error("Supabase Error:", error);
-    throw new Error("Failed to fetch reports directly");
-  }
-
-  // 2. Transform the data to create the "Stack" (subRows)
-  const formattedData = data?.map((report: any) => {
-    // Look at the incident, find the other reports, filter out the current one
-    const duplicates = report.incident?.barrack_damage?.filter(
-      (r: any) => r.id !== report.id && r.status === 'MERGED'
-    ) || [];
-
-    return {
-      ...report,
-      // TanStack table automatically looks for a 'subRows' array to create stacked rows
-      subRows: duplicates.length > 0 ? duplicates : undefined 
-    }
-  }) || [];
-
-  const totalPages = count ? Math.ceil(count / limit) : 0;
-
-  return {
-    reports: formattedData,
-    metadata: { total: count, page, limit, totalPages }
-  };
-}
+import { Button } from "@/components/ui/button";
+import { BD_STATUS_OPTIONS } from "@/lib/defaults";
+import { getReports } from "./report-data";
 
 export default async function DashboardPage({
   searchParams,
@@ -92,14 +15,20 @@ export default async function DashboardPage({
   const { reports, metadata } = await getReports(params) 
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-5">Barrack Damages Dashboard</h1>
+    <div className="container mx-auto px-4 py-6 sm:px-6 sm:py-10">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-bold">Barrack Damages Dashboard</h1>
+        <Button asChild variant="outline">
+          <Link href="/dashboard/archive">View Completed Archive</Link>
+        </Button>
+      </div>
 
       <DashboardStats />
       <DataTable 
         columns={columns} 
         data={reports} 
         pageCount={metadata.totalPages} 
+        statusOptions={BD_STATUS_OPTIONS.filter((status) => status !== "COMPLETED")}
       />
     </div>
   )

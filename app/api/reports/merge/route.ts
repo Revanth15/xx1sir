@@ -2,8 +2,12 @@ import { NextRequest } from "next/server";
 import { withApiHandler, successResponse, ApiError } from "@/utils/api";
 import { createAdminClient } from "@/utils/supabase/admin";
 
-export const POST = withApiHandler(async (req: NextRequest) => {
-  const body = await req.json();
+export const POST = withApiHandler(
+  async (
+    req: NextRequest,
+    _context: { params: Promise<Record<string, string>> }
+  ) => {
+    const body = await req.json();
   
   const { masterReportId, subsumedCaseRef, actorName, actorId } = body;
 
@@ -85,5 +89,6 @@ export const POST = withApiHandler(async (req: NextRequest) => {
     }
   }
 
-  return successResponse(updatedReport, 200);
-});
+    return successResponse(updatedReport, 200);
+  }
+);

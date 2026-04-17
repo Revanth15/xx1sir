@@ -22,7 +22,7 @@ export const notify = {
     })
   },
   promise: (
-    promise: Promise<any>,
+    promise: Promise<unknown>,
     messages: { loading: string; success: string; error: string }
   ) => {
     toast.promise(promise, {

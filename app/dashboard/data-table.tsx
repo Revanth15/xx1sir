@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import {
   ColumnDef,
   flexRender,
@@ -45,7 +45,11 @@ function DebouncedInput({
   onChange,
   debounce = 500,
   ...props
-}: any) {
+}: Omit<ComponentProps<typeof Input>, "value" | "onChange"> & {
+  value: string;
+  onChange: (value: string) => void;
+  debounce?: number;
+}) {
   const [value, setValue] = useState(initialValue);
   useEffect(() => {
     setValue(initialValue);
@@ -68,12 +72,18 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   pageCount: number;
+  statusOptions?: string[];
+  hiddenFilters?: string[];
+  emptyMessage?: string;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   pageCount,
+  statusOptions = STATUS_OPTIONS,
+  hiddenFilters = [],
+  emptyMessage = "No results found.",
 }: DataTableProps<TData, TValue>) {
   const router = useRouter();
   const pathname = usePathname();
@@ -91,7 +101,7 @@ export function DataTable<TData, TValue>({
     pageCount,
     state: { expanded },
     onExpandedChange: setExpanded,
-    getSubRows: (row: any) => row.subRows,
+    getSubRows: (row) => (row as TData & { subRows?: TData[] }).subRows,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     manualPagination: true,
@@ -109,7 +119,7 @@ export function DataTable<TData, TValue>({
   const getDropdownOptions = (columnId: string) => {
     switch (columnId) {
       case "status":
-        return STATUS_OPTIONS;
+        return statusOptions;
       case "company":
         return COMPANY_OPTIONS;
       case "type":
@@ -121,44 +131,70 @@ export function DataTable<TData, TValue>({
     }
   };
 
+  const getColumnMinWidth = (columnId: string) => {
+    switch (columnId) {
+      case "case_reference":
+        return 220;
+      case "company":
+        return 120;
+      case "block":
+        return 100;
+      case "unit_location":
+        return 170;
+      case "type":
+        return 140;
+      case "status":
+        return 170;
+      case "description":
+        return 240;
+      case "date_reported":
+        return 170;
+      case "actions":
+        return 72;
+      default:
+        return 140;
+    }
+  };
+
   return (
     <div>
-      <div className="flex items-center py-4 gap-2">
+      <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center">
         <DebouncedInput
           value={globalSearch}
-          onChange={(value: any) => updateUrlParams("search", String(value))}
-          className="max-w-sm"
+          onChange={(value) => updateUrlParams("search", value)}
+          className="w-full sm:max-w-sm"
           placeholder="Search all records..."
         />
 
-      <Button
-        variant="outline"
-        onClick={() => updateUrlParams("urgent", isUrgentFilter ? "" : "true")}
-        className={cn(
-          "shrink-0 transition-all duration-200",
-          isUrgentFilter 
-            ? "bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20 hover:text-destructive" 
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        <AlertCircle 
+        <Button
+          variant="outline"
+          onClick={() => updateUrlParams("urgent", isUrgentFilter ? "" : "true")}
           className={cn(
-            "mr-2 h-4 w-4", 
-            isUrgentFilter ? "text-destructive" : "text-muted-foreground"
-          )} 
-        />
-        {isUrgentFilter ? "Urgent Only" : "Show Urgent"}
-      </Button>
+            "w-full shrink-0 transition-all duration-200 sm:w-auto",
+            isUrgentFilter
+              ? "bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20 hover:text-destructive"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <AlertCircle
+            className={cn(
+              "mr-2 h-4 w-4",
+              isUrgentFilter ? "text-destructive" : "text-muted-foreground"
+            )}
+          />
+          {isUrgentFilter ? "Urgent Only" : "Show Urgent"}
+        </Button>
       </div>
 
       <div className="rounded-md border">
-        <Table className="table-fixed w-full">
+        <Table className="w-full min-w-[1080px]">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const columnId = header.column.id;
                   const canFilter = header.column.getCanFilter();
+                  const showFilter = canFilter && !hiddenFilters.includes(columnId);
                   const currentFilterValue = searchParams.get(columnId) || "";
                   const isDropdownFilter = [
                     "status",
@@ -168,15 +204,12 @@ export function DataTable<TData, TValue>({
                   ].includes(columnId);
 
                   return (
-                    <TableHead key={header.id} className="align-top py-3 px-2">
+                    <TableHead key={header.id} className="align-top px-2 py-3">
                       <div
-                        className="flex flex-col gap-2"
-                        style={{
-                          width: `${header.column.getSize()}%`,
-                          minWidth: "100%",
-                        }}
+                        className="flex min-w-0 flex-col gap-2"
+                        style={{ minWidth: getColumnMinWidth(columnId) }}
                       >
-                        <div className="truncate font-semibold text-foreground">
+                        <div className="font-semibold text-foreground">
                           {header.isPlaceholder
                             ? null
                             : flexRender(
@@ -185,7 +218,7 @@ export function DataTable<TData, TValue>({
                               )}
                         </div>
 
-                        {canFilter &&
+                        {showFilter &&
                           (isDropdownFilter ? (
                             <Select
                               value={currentFilterValue || "all"}
@@ -212,9 +245,7 @@ export function DataTable<TData, TValue>({
                           ) : (
                             <DebouncedInput
                               value={currentFilterValue}
-                              onChange={(value: any) =>
-                                updateUrlParams(columnId, String(value))
-                              }
+                              onChange={(value) => updateUrlParams(columnId, value)}
                               placeholder={`Filter...`}
                               className="h-8 text-xs font-normal w-full min-w-0"
                             />
@@ -229,7 +260,9 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => {
-                const isUrgent = (row.original as any).is_urgent;
+                const isUrgent = Boolean(
+                  (row.original as { is_urgent?: boolean }).is_urgent
+                );
                 const isSubRow = row.depth > 0;
 
                 return (
@@ -250,6 +283,7 @@ export function DataTable<TData, TValue>({
                       <TableCell
                         key={cell.id}
                         className={cn(
+                          "px-2 py-3 align-top",
                           isSubRow && cell.column.id === "case_reference" && "pl-8"
                         )}
                       >
@@ -268,7 +302,7 @@ export function DataTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results found.
+                  {emptyMessage}
                 </TableCell>
               </TableRow>
             )}
@@ -276,7 +310,7 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      <div className="flex items-center justify-center space-x-2 py-4">
+      <div className="flex flex-col items-center justify-center gap-2 py-4 sm:flex-row">
         <Button
           variant="outline"
           size="sm"

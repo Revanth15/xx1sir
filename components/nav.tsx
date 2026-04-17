@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/utils/AuthProvider";
 import {
+  Archive,
   BadgeCheck,
   ClipboardPlus,
   ChevronsUpDown,
   LayoutDashboard,
   LogOut,
+  QrCode,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -61,10 +63,23 @@ export function AppSidebar() {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === "/"}>
+              <SidebarMenuButton asChild isActive={pathname === "/dashboard"}>
                 <Link href="/dashboard">
                   <LayoutDashboard className="h-4 w-4" />
                   <span>Dashboard</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === "/dashboard/archive"}
+              >
+                <Link href="/dashboard/archive">
+                  <Archive className="h-4 w-4" />
+                  <span>Completed Archive</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -84,6 +99,37 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
 
+        {/* Assets Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Assets</SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === "/assets" || pathname.startsWith("/assets/")}
+              >
+                <Link href="/assets">
+                  <QrCode className="h-4 w-4" />
+                  <span>Asset Inventory</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === "/assets/scan"}
+              >
+                <Link href="/assets/scan">
+                  <QrCode className="h-4 w-4" />
+                  <span>Scan Asset</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+
         {/* Admin Section - Only visible to admins */}
         {profile?.role === "admin" && (
           <SidebarGroup>
@@ -97,6 +143,19 @@ export function AppSidebar() {
                   <Link href="/admin/user-management">
                     <Users className="h-4 w-4" />
                     <span>User Management</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/assets/new"}
+                >
+                  <Link href="/assets/new">
+                    <QrCode className="h-4 w-4" />
+                    <span>Create Asset</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

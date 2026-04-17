@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+type ApiDetails = unknown;
+
 export class ApiError extends Error {
-  constructor(public statusCode: number, message: string, public details?: any) {
+  constructor(public statusCode: number, message: string, public details?: ApiDetails) {
     super(message);
     this.name = 'ApiError';
   }
@@ -11,14 +13,19 @@ export function successResponse<T>(data: T, status = 200) {
   return NextResponse.json({ success: true, data }, { status });
 }
 
-export function errorResponse(message: string, status = 400, details?: any) {
-  return NextResponse.json(
-    { success: false, error: message, ...(details && { details }) },
-    { status }
-  );
+export function errorResponse(message: string, status = 400, details?: ApiDetails) {
+  const payload: Record<string, unknown> = { success: false, error: message };
+  if (details !== undefined) {
+    payload.details = details;
+  }
+
+  return NextResponse.json(payload, { status });
 }
 
-type ApiHandler = (req: NextRequest, context: any) => Promise<NextResponse>;
+type ApiHandler<TContext = undefined> = (
+  req: NextRequest,
+  context: TContext
+) => Promise<NextResponse>;
 
 function getRequestMeta(req: NextRequest) {
   const forwardedFor = req.headers.get('x-forwarded-for');
@@ -32,8 +39,10 @@ function getRequestMeta(req: NextRequest) {
   };
 }
 
-export function withApiHandler(handler: ApiHandler): ApiHandler {
-  return async (req: NextRequest, context: any) => {
+export function withApiHandler<TContext = undefined>(
+  handler: ApiHandler<TContext>
+): ApiHandler<TContext> {
+  return async (req: NextRequest, context: TContext) => {
     const startTime = performance.now();
     const meta = getRequestMeta(req);
 
@@ -51,8 +60,10 @@ export function withApiHandler(handler: ApiHandler): ApiHandler {
       }));
 
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
       const duration = performance.now() - startTime;
+      const message = error instanceof Error ? error.message : 'Internal Server Error';
+      const stack = error instanceof Error ? error.stack : undefined;
       
       if (error instanceof ApiError) {
         console.warn(JSON.stringify({
@@ -67,8 +78,8 @@ export function withApiHandler(handler: ApiHandler): ApiHandler {
 
       console.error(JSON.stringify({
         level: 'error',
-        message: error.message || 'Internal Server Error',
-        stack: error.stack,
+        message,
+        stack,
         ...meta,
         status: 500,
         durationMs: Math.round(duration)

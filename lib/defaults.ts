@@ -18,6 +18,7 @@ export const BD_DAMAGE_TYPE_OPTIONS = [
     "Infra",
     "Aircon",
     "Fire alarm",
+    "Others",
   ];
 
 export const BD_LEVELS_OPTIONS = ["1", "2", "3", "4", "5", "6"]
@@ -46,4 +47,46 @@ export const BD_ROLES_REF = [
     { value: 'admin',  label: 'System Admin' },
   ] as const
 
-// export const BD_ROLES = []
+// Asset Management Defaults
+export const ASSET_UNITS = [
+  { code: 'ALPHA', label: 'Alpha Company' },
+  { code: 'BRAVO', label: 'Bravo Company' },
+  { code: 'CHARLIE', label: 'Charlie Company' },
+  { code: 'SUPPORT', label: 'Support Company' },
+  { code: 'MSC', label: 'MSC' },
+  { code: 'HQ', label: 'HQ' },
+] as const;
+
+export const ASSET_BLOCKS = [
+  { code: '265', label: 'Alpha training shed' },
+  { code: '264', label: 'Charlie training shed' },
+  { code: '263', label: 'Alpha / Bravo / Charlie' },
+  { code: '262', label: 'Bravo training shed' },
+  { code: '261', label: 'Support training shed' },
+  { code: '260', label: 'Support building' },
+  { code: '235', label: 'HQ building' },
+] as const;
+
+export const ASSET_LEVELS = [
+  { code: '1', label: 'Level 1' },
+  { code: '2', label: 'Level 2' },
+  { code: '3', label: 'Level 3' },
+  { code: '4', label: 'Level 4' },
+  { code: '5', label: 'Level 5' },
+  { code: '6', label: 'Level 6' },
+] as const;
+
+export const ASSET_TYPES = [
+  { code: 'WATERCOOLER', label: 'Water Cooler' },
+  { code: 'FIREEXT', label: 'Fire Extinguisher' },
+] as const;
+
+export const ASSET_SERVICEABILITY_STATUSES = ['SERVICEABLE', 'UNSERVICEABLE'] as const;
+
+export const ASSET_DISPLAYED_STATUSES = ['SERVICEABLE', 'UNSERVICEABLE', 'OUTDATED'] as const;
+
+export const SITE_LOCATION_CONFIG = {
+  units: ASSET_UNITS,
+  blocks: ASSET_BLOCKS,
+  levels: ASSET_LEVELS,
+} as const;

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, MessageCircleWarning } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ImageUploader } from "@/components/imageUploader";
 import {
   BD_BLOCK_REFS,
@@ -47,6 +49,8 @@ const schema = z.object({
   image_urls: z.array(z.string()),
   status: z.enum(REPORT_STATUS),
   approved_by_coy: z.boolean(),
+  asset_id: z.string().optional(),
+  source_inspection_id: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -69,6 +73,8 @@ export type BarrackDamageReport = {
   case_reference: string;
   date_reported: string;
   incident_id: string | null;
+  asset_id?: string | null;
+  source_inspection_id?: string | null;
   incident: DamageIncident | null; 
 } & FormValues;
 // --------------------------------
@@ -158,6 +164,7 @@ export default function DamageReportForm({
   mode = "create",
   onSuccess,
 }: DamageReportFormProps) {
+  const searchParams = useSearchParams();
   const currentMode =
     !report && mode === "edit"
       ? "create"
@@ -170,6 +177,18 @@ export default function DamageReportForm({
 
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const prefillDefaults = useMemo(
+    () => ({
+      block: searchParams.get("prefill_block") || "",
+      unit_number: searchParams.get("prefill_unit_number") || "",
+      location: searchParams.get("prefill_location") || "",
+      description: searchParams.get("prefill_description") || "",
+      asset_id: searchParams.get("asset_id") || "",
+      source_inspection_id: searchParams.get("source_inspection_id") || "",
+    }),
+    [searchParams]
+  );
 
   const {
     handleSubmit,
@@ -187,33 +206,57 @@ export default function DamageReportForm({
       is_urgent: report?.is_urgent || false,
       reported_by: report?.reported_by || "",
       type: report?.type || "",
-      block: report?.block || "",
-      unit_number: report?.unit_number || "",
-      location: report?.location || "", 
-      description: report?.description || "",
+      block: report?.block || prefillDefaults.block,
+      unit_number: report?.unit_number || prefillDefaults.unit_number,
+      location: report?.location || prefillDefaults.location, 
+      description: report?.description || prefillDefaults.description,
       image_urls: report?.image_urls || [],
       status: report?.status || "PENDING_COY",
       approved_by_coy: report?.approved_by_coy || false,
+      asset_id: report?.asset_id || prefillDefaults.asset_id,
+      source_inspection_id:
+        report?.source_inspection_id || prefillDefaults.source_inspection_id,
     },
   });
 
   useEffect(() => {
-    if (!report) return;
+    if (report) {
+      reset({
+        company: report.company,
+        damage_tag_placed: report.damage_tag_placed,
+        is_urgent: report.is_urgent,
+        reported_by: report.reported_by,
+        type: report.type,
+        block: report.block,
+        unit_number: report.unit_number,
+        location: report.location,
+        description: report.description,
+        image_urls: report.image_urls,
+        status: report.status,
+        approved_by_coy: report.approved_by_coy,
+        asset_id: report.asset_id || "",
+        source_inspection_id: report.source_inspection_id || "",
+      });
+      return;
+    }
+
     reset({
-      company: report.company,
-      damage_tag_placed: report.damage_tag_placed,
-      is_urgent: report.is_urgent,
-      reported_by: report.reported_by,
-      type: report.type,
-      block: report.block,
-      unit_number: report.unit_number,
-      location: report.location,
-      description: report.description,
-      image_urls: report.image_urls,
-      status: report.status,
-      approved_by_coy: report.approved_by_coy,
+      company: "",
+      damage_tag_placed: false,
+      is_urgent: false,
+      reported_by: "",
+      type: "",
+      block: prefillDefaults.block,
+      unit_number: prefillDefaults.unit_number,
+      location: prefillDefaults.location,
+      description: prefillDefaults.description,
+      image_urls: [],
+      status: "PENDING_COY",
+      approved_by_coy: false,
+      asset_id: prefillDefaults.asset_id,
+      source_inspection_id: prefillDefaults.source_inspection_id,
     });
-  }, [report, reset]);
+  }, [prefillDefaults, report, reset]);
 
   const isUrgent = watch("is_urgent");
   const watchBlock = watch("block");
@@ -273,13 +316,15 @@ export default function DamageReportForm({
       is_urgent: false,
       reported_by: "",
       type: "",
-      block: "",
-      unit_number: "",
-      location: "",
-      description: "",
+      block: prefillDefaults.block,
+      unit_number: prefillDefaults.unit_number,
+      location: prefillDefaults.location,
+      description: prefillDefaults.description,
       image_urls: [],
       status: "PENDING_COY",
       approved_by_coy: false,
+      asset_id: prefillDefaults.asset_id,
+      source_inspection_id: prefillDefaults.source_inspection_id,
     });
   };
 
@@ -287,7 +332,7 @@ export default function DamageReportForm({
     return (
       <div className="flex min-h-[100dvh] items-center justify-center p-4">
         <Card className="w-full max-w-md text-center shadow-lg animate-in zoom-in-95">
-          <CardHeader className="pb-4">
+            <CardHeader className="pb-4">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
               <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -297,6 +342,11 @@ export default function DamageReportForm({
             <CardDescription className="text-base">
               Your damage report has been securely submitted and is pending verification by the Company.
             </CardDescription>
+            {prefillDefaults.asset_id ? (
+              <p className="text-sm text-muted-foreground">
+                This report remains linked to the source asset inspection.
+              </p>
+            ) : null}
           </CardHeader>
           <CardContent>
             <Button onClick={handleReset} className="w-full h-12 text-base">
@@ -357,6 +407,14 @@ export default function DamageReportForm({
             </CardHeader>
 
             <CardContent className="space-y-8">
+            {!isViewMode && prefillDefaults.asset_id ? (
+              <Alert className="border-primary/30 bg-primary/5">
+                <AlertTitle>Linked Asset Inspection</AlertTitle>
+                <AlertDescription>
+                  Block, unit/location, and description were prefilled from the failed asset inspection. Review and adjust the damage category fields before submission.
+                </AlertDescription>
+              </Alert>
+            ) : null}
             {isViewMode && report && (
               <>
                 <div className="border-t border-border/50" />
@@ -508,6 +566,16 @@ export default function DamageReportForm({
                   />
                 </div>
               </div>
+
+              {isUrgent && !isViewMode && (
+                <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
+                  <MessageCircleWarning className="h-4 w-4" />
+                  <AlertTitle>Reminder: submit this urgent case via IFM WhatsApp</AlertTitle>
+                  <AlertDescription>
+                    After saving this report, send the case reference, location, and supporting photos to IFM WhatsApp so the urgent escalation is actioned immediately.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="border-t border-border/50" />
 

@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
+const nextConfig = {
+  turbopack: {
+    root: "/Users/revanth/Projects/xx1sirbd",
+  },
 };
 
 export default nextConfig;
