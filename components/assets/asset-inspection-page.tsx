@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CalendarIcon } from "lucide-react";
 
 import { AssetStatusBadge } from "@/components/assets/asset-status-badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -16,6 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -23,6 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   readCachedInspectionAsset,
   writeCachedInspectionAsset,
@@ -43,6 +52,38 @@ type FailedReportPrefill = {
   source_inspection_id: string;
 };
 
+function getChecklistFieldLabel(fieldKey: string, label?: string) {
+  return label || fieldKey.replace(/_/g, " ");
+}
+
+function parseDateFieldValue(value: string) {
+  if (!value) return undefined;
+
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+
+  return new Date(year, month - 1, day, 12);
+}
+
+function formatDateFieldValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateFieldLabel(value: string) {
+  const date = parseDateFieldValue(value);
+  if (!date) return "Pick a date";
+
+  return date.toLocaleDateString("en-SG", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
   const router = useRouter();
   const [asset, setAsset] = useState<AssetWithStatus | null>(() =>
@@ -53,6 +94,8 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
   const [serviceabilityStatus, setServiceabilityStatus] = useState<"SERVICEABLE" | "UNSERVICEABLE">("SERVICEABLE");
   const [notes, setNotes] = useState("");
   const [checkResults, setCheckResults] = useState<Record<string, "YES" | "NO" | "">>({});
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [openDateField, setOpenDateField] = useState<string | null>(null);
   const [openDamagePrompt, setOpenDamagePrompt] = useState(false);
   const [damagePrefill, setDamagePrefill] = useState<FailedReportPrefill | null>(null);
 
@@ -109,11 +152,17 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
   useEffect(() => {
     if (!asset) return;
 
-    const nextState: Record<string, "YES" | "NO" | ""> = {};
-    for (const key of Object.keys(asset.asset_type_config?.checklist_schema_json ?? {})) {
-      nextState[key] = "";
+    const checkState: Record<string, "YES" | "NO" | ""> = {};
+    const fieldState: Record<string, string> = {};
+    for (const [key, fieldSchema] of Object.entries(asset.asset_type_config?.checklist_schema_json ?? {})) {
+      if (fieldSchema.type === "boolean") {
+        checkState[key] = "";
+      } else {
+        fieldState[key] = "";
+      }
     }
-    setCheckResults(nextState);
+    setCheckResults(checkState);
+    setFieldValues(fieldState);
   }, [asset]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -122,24 +171,31 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
 
     const check_results_json: Record<string, unknown> = {};
     for (const [fieldKey, fieldSchema] of checklistFields) {
+      const fieldLabel = getChecklistFieldLabel(fieldKey, fieldSchema.label);
+
       if (fieldSchema.type === "boolean") {
         const value = checkResults[fieldKey];
         if (fieldSchema.required && !value) {
-          notify.error(`${fieldSchema.label || fieldKey} is required.`);
+          notify.error(`${fieldLabel} is required.`);
           return;
         }
         if (value) {
           check_results_json[fieldKey] = value === "YES";
         }
-      }
-    }
+      } else if (fieldSchema.type === "date" || fieldSchema.type === "text") {
+        const value =
+          fieldSchema.type === "text"
+            ? (fieldValues[fieldKey] || "").trim()
+            : fieldValues[fieldKey] || "";
 
-    if (
-      asset.asset_type_code === "WATERCOOLER" &&
-      typeof check_results_json.is_cold !== "boolean"
-    ) {
-      notify.error("Cold-water check is required.");
-      return;
+        if (fieldSchema.required && !value) {
+          notify.error(`${fieldLabel} is required.`);
+          return;
+        }
+        if (value) {
+          check_results_json[fieldKey] = value;
+        }
+      }
     }
 
     try {
@@ -240,9 +296,8 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
         <CardContent>
         <form onSubmit={handleSubmit} className="space-y-5">
 
-            <div className="grid grid-cols-2 gap-5">
-              
-              <div className="space-y-2 col-span-2">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="space-y-2">
                 <Label>Serviceability Status</Label>
                 <Select
                   value={serviceabilityStatus}
@@ -261,30 +316,95 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
               </div>
 
               {checklistFields.map(([fieldKey, fieldSchema]) => {
-                if (fieldSchema.type !== "boolean") return null;
+                const fieldLabel = getChecklistFieldLabel(fieldKey, fieldSchema.label);
+                const fieldId = `inspection-field-${fieldKey}`;
 
-                return (
-                  <div className="space-y-2 ml-2" key={fieldKey}>
-                    <Label>{fieldSchema.label || fieldKey.replace(/_/g, " ")}</Label>
-                    <Select
-                      value={checkResults[fieldKey] || undefined}
-                      onValueChange={(value) =>
-                        setCheckResults((current) => ({
-                          ...current,
-                          [fieldKey]: value as "YES" | "NO",
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select result" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="YES">Yes</SelectItem>
-                        <SelectItem value="NO">No</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
+                if (fieldSchema.type === "boolean") {
+                  return (
+                    <div className="space-y-2" key={fieldKey}>
+                      <Label htmlFor={fieldId}>{fieldLabel}</Label>
+                      <Select
+                        value={checkResults[fieldKey] || undefined}
+                        onValueChange={(value) =>
+                          setCheckResults((current) => ({
+                            ...current,
+                            [fieldKey]: value as "YES" | "NO",
+                          }))
+                        }
+                      >
+                        <SelectTrigger id={fieldId} className="w-full">
+                          <SelectValue placeholder="Select result" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="YES">Yes</SelectItem>
+                          <SelectItem value="NO">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                }
+
+                if (fieldSchema.type === "date") {
+                  return (
+                    <div className="space-y-2" key={fieldKey}>
+                      <Label htmlFor={fieldId}>{fieldLabel}</Label>
+                      <Popover
+                        open={openDateField === fieldKey}
+                        onOpenChange={(open) =>
+                          setOpenDateField(open ? fieldKey : null)
+                        }
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            id={fieldId}
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-between text-left font-normal",
+                              !fieldValues[fieldKey] && "text-muted-foreground"
+                            )}
+                          >
+                            {formatDateFieldLabel(fieldValues[fieldKey] || "")}
+                            <CalendarIcon className="size-4 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={parseDateFieldValue(fieldValues[fieldKey] || "")}
+                            onSelect={(date) => {
+                              setFieldValues((current) => ({
+                                ...current,
+                                [fieldKey]: date ? formatDateFieldValue(date) : "",
+                              }));
+                              setOpenDateField(null);
+                            }}
+                            autoFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  );
+                } else if (fieldSchema.type === "text") {
+                  return (
+                    <div className="space-y-2" key={fieldKey}>
+                      <Label htmlFor={fieldId}>{fieldLabel}</Label>
+                      <Input
+                        id={fieldId}
+                        type="text"
+                        required={fieldSchema.required}
+                        value={fieldValues[fieldKey] || ""}
+                        onChange={(e) =>
+                          setFieldValues((current) => ({
+                            ...current,
+                            [fieldKey]: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  );
+                }
+                return null;
               })}
             </div>
 

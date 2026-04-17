@@ -5,7 +5,7 @@ export type AssetDisplayedStatus =
   | "OUTDATED";
 
 export type AssetChecklistField = {
-  type: "boolean" | "text" | "number";
+  type: "boolean" | "date" | "text" | "number";
   required?: boolean;
   label?: string;
 };

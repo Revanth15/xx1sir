@@ -111,8 +111,8 @@ values
   (
     'FIREEXT',
     'Fire Extinguisher',
-    30,
-    '{}'::jsonb,
+    180,
+    '{"valid_until":{"type":"date","required":true,"label":"Valid Until"}}'::jsonb,
     true
   )
 on conflict (code) do update set
