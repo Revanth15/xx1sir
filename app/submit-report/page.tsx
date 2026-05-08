@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2, Clock, MessageCircleWarning } from "lucide-react";
+import type QrScanner from "qr-scanner";
+import { CheckCircle2, Clock, Link2Off, MessageCircleWarning, QrCode } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -54,6 +55,17 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+
+type LinkedAssetSummary = {
+  id: string;
+  asset_code: string;
+  display_name?: string | null;
+  last_serviceability_status?: string | null;
+};
+
+type DetailedQrScanResult = {
+  data: string;
+};
 
 // --- NEW DATA STRUCTURE TYPES ---
 export type DamageIncident = {
@@ -153,6 +165,306 @@ function YesNo({
   );
 }
 
+function AssetQrLinkField({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange: (asset: LinkedAssetSummary | null) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerRef = useRef<QrScanner | null>(null);
+  const resolvingScanRef = useRef(false);
+  const [manualCode, setManualCode] = useState("");
+  const [linkedAsset, setLinkedAsset] = useState<LinkedAssetSummary | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [startingScanner, setStartingScanner] = useState(false);
+  const [lookingUpAsset, setLookingUpAsset] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageIsError, setMessageIsError] = useState(false);
+
+  const buildCameraErrorMessage = (error: unknown) => {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return "Camera scanning requires HTTPS or localhost access. Use manual entry instead.";
+    }
+
+    if (error instanceof Error) {
+      switch (error.name) {
+        case "NotAllowedError":
+          return "Camera access was blocked. Allow camera permission and try again.";
+        case "NotFoundError":
+          return "No camera was detected on this device. Use manual entry instead.";
+        case "NotReadableError":
+          return "The camera is already in use by another app or browser tab.";
+        default:
+          return error.message || "Unable to access the camera. Use manual entry instead.";
+      }
+    }
+
+    return "Unable to access the camera. Use manual entry instead.";
+  };
+
+  const stopScanner = () => {
+    scannerRef.current?.stop();
+    setScanning(false);
+    setStartingScanner(false);
+  };
+
+  const destroyScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+      scannerRef.current.destroy();
+      scannerRef.current = null;
+    }
+
+    setScanning(false);
+    setStartingScanner(false);
+  };
+
+  const setLinked = (asset: LinkedAssetSummary) => {
+    setLinkedAsset(asset);
+    setExpanded(false);
+    onChange(asset);
+    setMessage(`Linked ${asset.asset_code}. Submitting this report will mark it unserviceable.`);
+    setMessageIsError(false);
+  };
+
+  const lookupAsset = async (rawCode: string) => {
+    const trimmedCode = rawCode.trim();
+    if (!trimmedCode) {
+      throw new Error("Enter or scan an asset QR code.");
+    }
+
+    setLookingUpAsset(true);
+    setMessage("Resolving asset QR code...");
+    setMessageIsError(false);
+
+    try {
+      const response = await fetch("/api/assets/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raw_qr_code: trimmedCode }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to resolve QR code.");
+      }
+
+      if (!result.data.asset) {
+        throw new Error("Unknown asset code.");
+      }
+
+      setLinked(result.data.asset);
+    } finally {
+      setLookingUpAsset(false);
+    }
+  };
+
+  const getScanner = async () => {
+    if (scannerRef.current) {
+      return scannerRef.current;
+    }
+
+    if (!videoRef.current) {
+      throw new Error("Camera preview is not ready yet.");
+    }
+
+    const { default: QrScannerClass } = await import("qr-scanner");
+    const scanner = new QrScannerClass(
+      videoRef.current,
+      (result: DetailedQrScanResult) => {
+        const rawCode = result.data?.trim();
+        if (!rawCode || resolvingScanRef.current) {
+          return;
+        }
+
+        resolvingScanRef.current = true;
+        scanner.stop();
+        setScanning(false);
+
+        void lookupAsset(rawCode).catch(async (error) => {
+          const errorMessage =
+            error instanceof Error ? error.message : "Failed to resolve QR code.";
+          setMessage(errorMessage);
+          setMessageIsError(true);
+          resolvingScanRef.current = false;
+
+          try {
+            await scanner.start();
+            setScanning(true);
+          } catch (restartError) {
+            setMessage(buildCameraErrorMessage(restartError));
+            setMessageIsError(true);
+          }
+        });
+      },
+      {
+        preferredCamera: "environment",
+        maxScansPerSecond: 8,
+        returnDetailedScanResult: true,
+      }
+    );
+
+    scannerRef.current = scanner;
+    return scanner;
+  };
+
+  const startScanner = async () => {
+    setStartingScanner(true);
+    setMessage(null);
+    setMessageIsError(false);
+
+    try {
+      const { default: QrScannerClass } = await import("qr-scanner");
+      if (!(await QrScannerClass.hasCamera())) {
+        throw new Error("No camera detected on this device. Use manual entry instead.");
+      }
+
+      const scanner = await getScanner();
+      await scanner.start();
+      resolvingScanRef.current = false;
+      setScanning(true);
+      setMessage("Point the camera at the asset QR code.");
+    } catch (error) {
+      setMessage(buildCameraErrorMessage(error));
+      setMessageIsError(true);
+      stopScanner();
+    } finally {
+      setStartingScanner(false);
+    }
+  };
+
+  const handleManualSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    try {
+      await lookupAsset(manualCode);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Lookup failed.");
+      setMessageIsError(true);
+    }
+  };
+
+  const clearLinkedAsset = () => {
+    setLinkedAsset(null);
+    setManualCode("");
+    stopScanner();
+    onChange(null);
+    setMessage("No asset linked. The report can still be submitted.");
+    setMessageIsError(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      destroyScanner();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!value) {
+      setLinkedAsset(null);
+    }
+  }, [value]);
+
+  return (
+    <div className="space-y-4 rounded-md border bg-background p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <Label className="flex items-center gap-2">
+            <QrCode className="h-4 w-4" />
+            Scan QR Code <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Link an asset to this damage report!
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {linkedAsset ? (
+            <Button type="button" variant="outline" size="sm" onClick={clearLinkedAsset}>
+              <Link2Off className="mr-2 h-4 w-4" />
+              Unlink
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant={linkedAsset ? "outline" : "secondary"}
+            size="sm"
+            onClick={() => {
+              const nextExpanded = !expanded;
+              setExpanded(nextExpanded);
+              if (!nextExpanded) stopScanner();
+            }}
+          >
+            <QrCode className="mr-2 h-4 w-4" />
+            {expanded ? "Hide QR Link" : linkedAsset ? "Change Asset" : "Link Asset QR"}
+          </Button>
+        </div>
+      </div>
+
+      {linkedAsset ? (
+        <div className="rounded-md border bg-background p-3 text-sm">
+          <div className="font-mono font-semibold">{linkedAsset.asset_code}</div>
+          <div className="text-muted-foreground">
+            {linkedAsset.display_name || "Asset linked"} · Current status:{" "}
+            {linkedAsset.last_serviceability_status || "Not inspected"}
+          </div>
+        </div>
+      ) : null}
+
+      {expanded ? (
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)]">
+          <div className="space-y-3">
+            <div className="overflow-hidden rounded-md border bg-black">
+              <video ref={videoRef} className="aspect-video w-full object-cover" playsInline muted />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={startScanner}
+                disabled={scanning || startingScanner || lookingUpAsset}
+              >
+                {startingScanner ? "Starting..." : scanning ? "Scanning..." : "Scan QR"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={stopScanner}
+                disabled={!scanning && !startingScanner}
+              >
+                Stop
+              </Button>
+            </div>
+          </div>
+
+          <form onSubmit={handleManualSubmit} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="report-asset-code">Manual Asset Code</Label>
+              <Input
+                id="report-asset-code"
+                value={manualCode}
+                onChange={(event) => setManualCode(event.target.value.toUpperCase())}
+                placeholder="1SIR-265-1-WC-017"
+              />
+            </div>
+            <Button type="submit" variant="secondary" disabled={lookingUpAsset} className="w-full">
+              {lookingUpAsset ? "Looking up..." : "Link Asset"}
+            </Button>
+          </form>
+        </div>
+      ) : null}
+
+      {message ? (
+        <p className={messageIsError ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 interface DamageReportFormProps {
   report?: BarrackDamageReport;
   mode?: "create" | "edit" | "view";
@@ -177,6 +489,8 @@ export default function DamageReportForm({
 
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submittedLinkedAssetCode, setSubmittedLinkedAssetCode] = useState<string | null>(null);
+  const [linkedAsset, setLinkedAsset] = useState<LinkedAssetSummary | null>(null);
 
   const prefillDefaults = useMemo(
     () => ({
@@ -262,6 +576,7 @@ export default function DamageReportForm({
   const watchBlock = watch("block");
   const watchUnitNumber = watch("unit_number") ?? "";
   const watchLocation = watch("location");
+  const watchAssetId = watch("asset_id");
   
   const derivedLevel = deriveLevel(watchUnitNumber);
 
@@ -298,6 +613,9 @@ export default function DamageReportForm({
       if (onSuccess) {
         onSuccess(data, isEditMode ? report?.id : result.data.id);
       } else {
+        setSubmittedLinkedAssetCode(
+          linkedAsset?.asset_code || (data.asset_id ? "linked asset" : null)
+        );
         setSubmitted(true);
       }
     } catch (error) {
@@ -310,6 +628,8 @@ export default function DamageReportForm({
 
   const handleReset = () => {
     setSubmitted(false);
+    setSubmittedLinkedAssetCode(null);
+    setLinkedAsset(null);
     reset({
       company: "",
       damage_tag_placed: false,
@@ -342,9 +662,9 @@ export default function DamageReportForm({
             <CardDescription className="text-base">
               Your damage report has been securely submitted and is pending verification by the Company.
             </CardDescription>
-            {prefillDefaults.asset_id ? (
+            {submittedLinkedAssetCode ? (
               <p className="text-sm text-muted-foreground">
-                This report remains linked to the source asset inspection.
+                The {submittedLinkedAssetCode} has been marked unserviceable.
               </p>
             ) : null}
           </CardHeader>
@@ -706,6 +1026,21 @@ export default function DamageReportForm({
                   />
                 </div>
               </div>
+              {!isViewMode && !isEditMode ? (
+                <>
+                  <div className="border-t border-border/50" />
+                  <AssetQrLinkField
+                    value={watchAssetId}
+                    onChange={(asset) => {
+                      setLinkedAsset(asset);
+                      setValue("asset_id", asset?.id ?? "", {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
+                  />
+                </>
+              ) : null}
             </CardContent>
             
             {!isViewMode && (

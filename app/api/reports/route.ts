@@ -67,6 +67,25 @@ export const POST = withApiHandler(
     }
   }
 
+  if (assetId) {
+    const { error: assetStatusError } = await supabaseAdmin
+      .from("assets")
+      .update({
+        last_serviceability_status: "UNSERVICEABLE",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", assetId);
+
+    if (assetStatusError) {
+      console.error("ASSET STATUS UPDATE ERROR:", assetStatusError);
+      throw new ApiError(
+        500,
+        "Report saved, but failed to mark the linked asset unserviceable.",
+        assetStatusError
+      );
+    }
+  }
+
     return successResponse(reportData, 201);
   }
 );
