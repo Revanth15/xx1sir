@@ -114,10 +114,33 @@ values
     180,
     '{"valid_until":{"type":"date","required":true,"label":"Valid Until"}}'::jsonb,
     true
+  ),
+  (
+    'SHOWER',
+    'Shower',
+    30,
+    '{"water_flow_ok":{"type":"boolean","required":true,"label":"Water flow is normal"},"drainage_ok":{"type":"boolean","required":true,"label":"Drainage is clear"}}'::jsonb,
+    true
+  ),
+  (
+    'SINK',
+    'Sink',
+    30,
+    '{"tap_ok":{"type":"boolean","required":true,"label":"Tap is working"},"drainage_ok":{"type":"boolean","required":true,"label":"Drainage is clear"}}'::jsonb,
+    true
+  ),
+  (
+    'TOILET',
+    'Toilets',
+    30,
+    '{"flush_ok":{"type":"boolean","required":true,"label":"Flush is working"},"leak_free":{"type":"boolean","required":true,"label":"No leak observed"}}'::jsonb,
+    true
+  ),
+  (
+    'EXITLIGHT',
+    'Exit Light',
+    30,
+    '{"light_on":{"type":"boolean","required":true,"label":"Light is on"},"sign_visible":{"type":"boolean","required":true,"label":"Sign is visible"}}'::jsonb,
+    true
   )
-on conflict (code) do update set
-  label = excluded.label,
-  inspection_frequency_days = excluded.inspection_frequency_days,
-  checklist_schema_json = excluded.checklist_schema_json,
-  is_active = excluded.is_active,
-  updated_at = now();
+on conflict (code) do nothing;

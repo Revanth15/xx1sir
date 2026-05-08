@@ -100,6 +100,11 @@ export function AssetForm({
   }, [form]);
 
   const selectedTypeConfig = assetTypeConfigs.find((config) => config.code === form.asset_type_code) ?? null;
+  const selectableAssetTypeConfigs = assetTypeConfigs.filter(
+    (config) =>
+      config.is_active ||
+      (mode === "edit" && config.code === initialAsset?.asset_type_code)
+  );
 
   const setField = <K extends keyof AssetFormState>(key: K, value: AssetFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -234,7 +239,7 @@ export function AssetForm({
               <SelectValue placeholder={loadingConfigs ? "Loading..." : "Select type"} />
             </SelectTrigger>
             <SelectContent>
-              {assetTypeConfigs.map((typeConfig) => (
+              {selectableAssetTypeConfigs.map((typeConfig) => (
                 <SelectItem key={typeConfig.code} value={typeConfig.code}>{typeConfig.label}</SelectItem>
               ))}
             </SelectContent>

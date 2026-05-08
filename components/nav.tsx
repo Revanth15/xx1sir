@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   QrCode,
+  Settings2,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -156,6 +157,19 @@ export function AppSidebar() {
                   <Link href="/assets/new">
                     <QrCode className="h-4 w-4" />
                     <span>Create Asset</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/admin/asset-types"}
+                >
+                  <Link href="/admin/asset-types">
+                    <Settings2 className="h-4 w-4" />
+                    <span>Asset Type Settings</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

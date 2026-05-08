@@ -275,7 +275,7 @@ export function BulkAssetForm() {
         <SelectValue placeholder={loadingConfigs ? "Loading..." : "Select type"} />
       </SelectTrigger>
       <SelectContent>
-        {assetTypeConfigs.map((config) => (
+        {assetTypeConfigs.filter((config) => config.is_active).map((config) => (
           <SelectItem key={config.code} value={config.code}>{config.label}</SelectItem>
         ))}
       </SelectContent>

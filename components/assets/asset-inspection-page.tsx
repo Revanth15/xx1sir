@@ -195,6 +195,22 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
         if (value) {
           check_results_json[fieldKey] = value;
         }
+      } else if (fieldSchema.type === "number") {
+        const value = fieldValues[fieldKey] || "";
+
+        if (fieldSchema.required && !value) {
+          notify.error(`${fieldLabel} is required.`);
+          return;
+        }
+
+        if (value) {
+          const numberValue = Number(value);
+          if (!Number.isFinite(numberValue)) {
+            notify.error(`${fieldLabel} must be a number.`);
+            return;
+          }
+          check_results_json[fieldKey] = numberValue;
+        }
       }
     }
 
@@ -385,13 +401,13 @@ export function AssetInspectionPage({ assetCode }: AssetInspectionPageProps) {
                       </Popover>
                     </div>
                   );
-                } else if (fieldSchema.type === "text") {
+                } else if (fieldSchema.type === "text" || fieldSchema.type === "number") {
                   return (
                     <div className="space-y-2" key={fieldKey}>
                       <Label htmlFor={fieldId}>{fieldLabel}</Label>
                       <Input
                         id={fieldId}
-                        type="text"
+                        type={fieldSchema.type === "number" ? "number" : "text"}
                         required={fieldSchema.required}
                         value={fieldValues[fieldKey] || ""}
                         onChange={(e) =>
