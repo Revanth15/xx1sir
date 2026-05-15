@@ -168,13 +168,11 @@ function YesNo({
 }
 
 function AssetQrLinkField({
-  value,
-  initialAsset,
+  linkedAsset,
   disabled = false,
   onChange,
 }: {
-  value?: string;
-  initialAsset?: LinkedAssetSummary | null;
+  linkedAsset?: LinkedAssetSummary | null;
   disabled?: boolean;
   onChange: (asset: LinkedAssetSummary | null) => void;
 }) {
@@ -182,7 +180,6 @@ function AssetQrLinkField({
   const scannerRef = useRef<QrScanner | null>(null);
   const resolvingScanRef = useRef(false);
   const [manualCode, setManualCode] = useState("");
-  const [linkedAsset, setLinkedAsset] = useState<LinkedAssetSummary | null>(null);
   const [scanning, setScanning] = useState(false);
   const [startingScanner, setStartingScanner] = useState(false);
   const [lookingUpAsset, setLookingUpAsset] = useState(false);
@@ -229,7 +226,6 @@ function AssetQrLinkField({
   };
 
   const setLinked = (asset: LinkedAssetSummary) => {
-    setLinkedAsset(asset);
     setExpanded(false);
     onChange(asset);
     setMessage(`Linked ${asset.asset_code}. Saving this report will mark it unserviceable.`);
@@ -342,9 +338,7 @@ function AssetQrLinkField({
     }
   };
 
-  const handleManualSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleManualLink = async () => {
     try {
       await lookupAsset(manualCode);
     } catch (error) {
@@ -354,7 +348,6 @@ function AssetQrLinkField({
   };
 
   const clearLinkedAsset = () => {
-    setLinkedAsset(null);
     setManualCode("");
     stopScanner();
     onChange(null);
@@ -367,17 +360,6 @@ function AssetQrLinkField({
       destroyScanner();
     };
   }, []);
-
-  useEffect(() => {
-    if (!value) {
-      setLinkedAsset(null);
-      return;
-    }
-
-    if (initialAsset && initialAsset.id === value) {
-      setLinkedAsset(initialAsset);
-    }
-  }, [initialAsset, value]);
 
   return (
     <div className="space-y-4 rounded-md border bg-background p-4">
@@ -459,20 +441,32 @@ function AssetQrLinkField({
             </div>
           </div>
 
-          <form onSubmit={handleManualSubmit} className="space-y-3">
+          <div className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="report-asset-code">Manual Asset Code</Label>
               <Input
                 id="report-asset-code"
                 value={manualCode}
                 onChange={(event) => setManualCode(event.target.value.toUpperCase())}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleManualLink();
+                  }
+                }}
                 placeholder="1SIR-265-1-WC-017"
               />
             </div>
-            <Button type="submit" variant="secondary" disabled={lookingUpAsset} className="w-full">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={lookingUpAsset}
+              className="w-full"
+              onClick={() => void handleManualLink()}
+            >
               {lookingUpAsset ? "Looking up..." : "Link Asset"}
             </Button>
-          </form>
+          </div>
         </div>
       ) : null}
 
@@ -601,6 +595,12 @@ export default function DamageReportForm({
   const watchUnitNumber = watch("unit_number") ?? "";
   const watchLocation = watch("location");
   const watchAssetId = watch("asset_id");
+  const displayedLinkedAsset =
+    linkedAsset && linkedAsset.id === watchAssetId
+      ? linkedAsset
+      : report?.asset && report.asset.id === watchAssetId
+      ? report.asset
+      : null;
   
   const derivedLevel = deriveLevel(watchUnitNumber);
 
@@ -1052,8 +1052,7 @@ export default function DamageReportForm({
                 <>
                   <div className="border-t border-border/50" />
                   <AssetQrLinkField
-                    value={watchAssetId ?? undefined}
-                    initialAsset={linkedAsset ?? report?.asset ?? null}
+                    linkedAsset={displayedLinkedAsset}
                     disabled={isViewMode}
                     onChange={(asset) => {
                       setLinkedAsset(asset);
