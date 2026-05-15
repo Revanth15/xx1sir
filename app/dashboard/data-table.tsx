@@ -267,7 +267,7 @@ export function DataTable<TData, TValue>({
 
                 return (
                   <TableRow
-                    key={row.id}
+                    key={(row.original as { id?: string }).id ?? row.id}
                     className={cn(
                       // Default hover
                       "transition-colors hover:bg-muted/50",

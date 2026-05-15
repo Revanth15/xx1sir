@@ -274,6 +274,10 @@ const StatusCell = ({ report }: { report: BarrackDamage }) => {
   const [isPending, startTransition] = useTransition()
   const [currentStatus, setCurrentStatus] = useState(report.status)
 
+  useEffect(() => {
+    setCurrentStatus(report.status)
+  }, [report.id, report.status])
+
   const updateStatus = async (newStatus: string) => {
     setCurrentStatus(newStatus)
     try {

@@ -526,7 +526,6 @@ export async function DashboardStats({ params }: { params: SearchParams }) {
             <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
               <MetricTile label="Awaiting COY" value={awaitingCoy} icon={ShieldCheck} tone="yellow" />
               <MetricTile label="Tags missing" value={untaggedReports} icon={Tag} tone="red" />
-              <MetricTile label="Completed" value={completedReports.length} icon={CheckCircle2} tone="green" />
             </div>
           </div>
         </div>
