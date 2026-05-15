@@ -40,9 +40,11 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup')
   const isAdminRoute = pathname.startsWith('/admin')
 //  || pathname == "/assets" || pathname == "/assets/new"
+  const isPublicReportCreate = pathname === '/api/reports' && request.method === 'POST'
   // Check if the route exactly matches a public route OR starts with a public prefix
   const isPublicRoute = publicRoutes.includes(pathname) || 
-                        publicPrefixes.some(prefix => pathname.startsWith(prefix))
+                        publicPrefixes.some(prefix => pathname.startsWith(prefix)) ||
+                        isPublicReportCreate
 
   // Redirect unauthenticated users away from protected routes
   if (!user && !isPublicRoute) {
