@@ -31,6 +31,14 @@ type DashboardBarrackDamage = {
   status: string;
   approved_by_coy: boolean;
   date_reported: string;
+  asset_id: string | null;
+  source_inspection_id: string | null;
+  asset: {
+    id: string;
+    asset_code: string;
+    display_name: string | null;
+    last_serviceability_status: string | null;
+  } | null;
   incident_id: string | null;
   incident: DamageIncident | null;
   subRows?: DashboardBarrackDamage[];
@@ -54,6 +62,9 @@ type DashboardReportRecord = {
   status: DashboardBarrackDamage["status"];
   approved_by_coy: DashboardBarrackDamage["approved_by_coy"];
   date_reported: DashboardBarrackDamage["date_reported"];
+  asset_id: DashboardBarrackDamage["asset_id"];
+  source_inspection_id: DashboardBarrackDamage["source_inspection_id"];
+  asset?: DashboardBarrackDamage["asset"];
   incident_id: DashboardBarrackDamage["incident_id"];
   incident?: {
     id: string;
@@ -87,9 +98,23 @@ export async function getReports(
     .select(
       `
       *,
+      asset:assets (
+        id,
+        asset_code,
+        display_name,
+        last_serviceability_status
+      ),
       incident:damage_incident (
         *,
-        barrack_damage (*)
+        barrack_damage (
+          *,
+          asset:assets (
+            id,
+            asset_code,
+            display_name,
+            last_serviceability_status
+          )
+        )
       )
     `,
       { count: "exact" }

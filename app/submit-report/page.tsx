@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,8 +51,8 @@ const schema = z.object({
   image_urls: z.array(z.string()),
   status: z.enum(REPORT_STATUS),
   approved_by_coy: z.boolean(),
-  asset_id: z.string().optional(),
-  source_inspection_id: z.string().optional(),
+  asset_id: z.string().nullable().optional(),
+  source_inspection_id: z.string().nullable().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -87,6 +88,7 @@ export type BarrackDamageReport = {
   incident_id: string | null;
   asset_id?: string | null;
   source_inspection_id?: string | null;
+  asset?: LinkedAssetSummary | null;
   incident: DamageIncident | null; 
 } & FormValues;
 // --------------------------------
@@ -167,9 +169,13 @@ function YesNo({
 
 function AssetQrLinkField({
   value,
+  initialAsset,
+  disabled = false,
   onChange,
 }: {
   value?: string;
+  initialAsset?: LinkedAssetSummary | null;
+  disabled?: boolean;
   onChange: (asset: LinkedAssetSummary | null) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -226,7 +232,7 @@ function AssetQrLinkField({
     setLinkedAsset(asset);
     setExpanded(false);
     onChange(asset);
-    setMessage(`Linked ${asset.asset_code}. Submitting this report will mark it unserviceable.`);
+    setMessage(`Linked ${asset.asset_code}. Saving this report will mark it unserviceable.`);
     setMessageIsError(false);
   };
 
@@ -365,8 +371,13 @@ function AssetQrLinkField({
   useEffect(() => {
     if (!value) {
       setLinkedAsset(null);
+      return;
     }
-  }, [value]);
+
+    if (initialAsset && initialAsset.id === value) {
+      setLinkedAsset(initialAsset);
+    }
+  }, [initialAsset, value]);
 
   return (
     <div className="space-y-4 rounded-md border bg-background p-4">
@@ -374,46 +385,55 @@ function AssetQrLinkField({
         <div className="space-y-1">
           <Label className="flex items-center gap-2">
             <QrCode className="h-4 w-4" />
-            Scan QR Code <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+            Linked Asset <span className="text-xs font-normal text-muted-foreground">(optional)</span>
           </Label>
           <p className="text-xs text-muted-foreground">
-            Link an asset to this damage report!
+            Link an asset to this damage report.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {linkedAsset ? (
-            <Button type="button" variant="outline" size="sm" onClick={clearLinkedAsset}>
-              <Link2Off className="mr-2 h-4 w-4" />
-              Unlink
+        {!disabled ? (
+          <div className="flex flex-wrap gap-2">
+            {linkedAsset ? (
+              <Button type="button" variant="outline" size="sm" onClick={clearLinkedAsset}>
+                <Link2Off className="mr-2 h-4 w-4" />
+                Unlink
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant={linkedAsset ? "outline" : "secondary"}
+              size="sm"
+              onClick={() => {
+                const nextExpanded = !expanded;
+                setExpanded(nextExpanded);
+                if (!nextExpanded) stopScanner();
+              }}
+            >
+              <QrCode className="mr-2 h-4 w-4" />
+              {expanded ? "Hide QR Link" : linkedAsset ? "Change Asset" : "Link Asset QR"}
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant={linkedAsset ? "outline" : "secondary"}
-            size="sm"
-            onClick={() => {
-              const nextExpanded = !expanded;
-              setExpanded(nextExpanded);
-              if (!nextExpanded) stopScanner();
-            }}
-          >
-            <QrCode className="mr-2 h-4 w-4" />
-            {expanded ? "Hide QR Link" : linkedAsset ? "Change Asset" : "Link Asset QR"}
-          </Button>
-        </div>
+          </div>
+        ) : null}
       </div>
 
       {linkedAsset ? (
         <div className="rounded-md border bg-background p-3 text-sm">
-          <div className="font-mono font-semibold">{linkedAsset.asset_code}</div>
+          <Link
+            href={`/assets/${encodeURIComponent(linkedAsset.asset_code)}`}
+            className="font-mono font-semibold hover:underline"
+          >
+            {linkedAsset.asset_code}
+          </Link>
           <div className="text-muted-foreground">
             {linkedAsset.display_name || "Asset linked"} · Current status:{" "}
             {linkedAsset.last_serviceability_status || "Not inspected"}
           </div>
         </div>
+      ) : disabled ? (
+        <p className="text-sm text-muted-foreground">No asset linked.</p>
       ) : null}
 
-      {expanded ? (
+      {expanded && !disabled ? (
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)]">
           <div className="space-y-3">
             <div className="overflow-hidden rounded-md border bg-black">
@@ -490,7 +510,9 @@ export default function DamageReportForm({
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submittedLinkedAssetCode, setSubmittedLinkedAssetCode] = useState<string | null>(null);
-  const [linkedAsset, setLinkedAsset] = useState<LinkedAssetSummary | null>(null);
+  const [linkedAsset, setLinkedAsset] = useState<LinkedAssetSummary | null>(
+    report?.asset ?? null
+  );
 
   const prefillDefaults = useMemo(
     () => ({
@@ -535,6 +557,7 @@ export default function DamageReportForm({
 
   useEffect(() => {
     if (report) {
+      setLinkedAsset(report.asset ?? null);
       reset({
         company: report.company,
         damage_tag_placed: report.damage_tag_placed,
@@ -554,6 +577,7 @@ export default function DamageReportForm({
       return;
     }
 
+    setLinkedAsset(null);
     reset({
       company: "",
       damage_tag_placed: false,
@@ -1024,14 +1048,20 @@ export default function DamageReportForm({
                   />
                 </div>
               </div>
-              {!isViewMode && !isEditMode ? (
+              {(!isViewMode || watchAssetId) ? (
                 <>
                   <div className="border-t border-border/50" />
                   <AssetQrLinkField
-                    value={watchAssetId}
+                    value={watchAssetId ?? undefined}
+                    initialAsset={linkedAsset ?? report?.asset ?? null}
+                    disabled={isViewMode}
                     onChange={(asset) => {
                       setLinkedAsset(asset);
                       setValue("asset_id", asset?.id ?? "", {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      setValue("source_inspection_id", "", {
                         shouldDirty: true,
                         shouldValidate: true,
                       });

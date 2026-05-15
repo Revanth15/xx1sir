@@ -4,6 +4,8 @@ import { z } from "zod";
 import { withApiHandler, successResponse, ApiError } from "../../../utils/api";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import type { AssetInspectionRecord } from "@/lib/types/assets";
+import { summarizeCheckResults } from "@/utils/assets";
 
 const optionalUuidSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
@@ -24,6 +26,145 @@ const createReportSchema = z.object({
   asset_id: optionalUuidSchema,
   source_inspection_id: optionalUuidSchema,
 });
+
+const CLOSED_REPORT_STATUSES = new Set(["COMPLETED", "REJECTED", "MERGED"]);
+
+type ReportAssetLinkState = {
+  id: string;
+  asset_id: string | null;
+  source_inspection_id: string | null;
+  status: string;
+};
+
+type LinkedReportStatusRecord = {
+  id: string;
+  status: string;
+};
+
+async function ensureActiveAsset(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  assetId: string
+) {
+  const { data: asset, error } = await supabaseAdmin
+    .from("assets")
+    .select("id")
+    .eq("id", assetId)
+    .eq("is_active", true)
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    throw new ApiError(500, "Failed to verify linked asset.", error);
+  }
+
+  if (!asset) {
+    throw new ApiError(400, "Linked asset was not found.");
+  }
+}
+
+async function ensureInspectionLinkable(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  inspectionId: string,
+  assetId: string,
+  reportId?: string
+) {
+  const { data: inspection, error } = await supabaseAdmin
+    .from("asset_inspections")
+    .select("id, asset_id, linked_report_id")
+    .eq("id", inspectionId)
+    .maybeSingle<{
+      id: string;
+      asset_id: string;
+      linked_report_id: string | null;
+    }>();
+
+  if (error) {
+    throw new ApiError(500, "Failed to verify linked inspection.", error);
+  }
+
+  if (!inspection || inspection.asset_id !== assetId) {
+    throw new ApiError(400, "Linked inspection does not match the linked asset.");
+  }
+
+  if (inspection.linked_report_id && inspection.linked_report_id !== reportId) {
+    throw new ApiError(400, "Linked inspection already has a damage report.");
+  }
+}
+
+async function refreshAssetServiceability(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  assetId: string
+) {
+  const { data: linkedReports, error: linkedReportsError } = await supabaseAdmin
+    .from("barrack_damage")
+    .select("id, status")
+    .eq("asset_id", assetId)
+    .returns<LinkedReportStatusRecord[]>();
+
+  if (linkedReportsError) {
+    throw new ApiError(500, "Failed to refresh linked asset reports.", linkedReportsError);
+  }
+
+  const hasOpenLinkedReport = (linkedReports ?? []).some(
+    (report) => !CLOSED_REPORT_STATUSES.has(report.status)
+  );
+
+  if (hasOpenLinkedReport) {
+    const { error } = await supabaseAdmin
+      .from("assets")
+      .update({
+        last_serviceability_status: "UNSERVICEABLE",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", assetId);
+
+    if (error) {
+      throw new ApiError(500, "Failed to mark the linked asset unserviceable.", error);
+    }
+
+    return;
+  }
+
+  const { data: latestInspection, error: latestInspectionError } = await supabaseAdmin
+    .from("asset_inspections")
+    .select("*")
+    .eq("asset_id", assetId)
+    .order("inspected_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<AssetInspectionRecord>();
+
+  if (latestInspectionError) {
+    throw new ApiError(500, "Failed to fetch latest asset inspection.", latestInspectionError);
+  }
+
+  const updatePayload = latestInspection
+    ? {
+        last_inspected_at: latestInspection.inspected_at,
+        last_inspected_by: latestInspection.inspected_by_name,
+        last_serviceability_status: latestInspection.serviceability_status,
+        last_check_summary_json: summarizeCheckResults(
+          latestInspection.check_results_json ?? {}
+        ),
+        latest_inspection_id: latestInspection.id,
+        updated_at: new Date().toISOString(),
+      }
+    : {
+        last_inspected_at: null,
+        last_inspected_by: null,
+        last_serviceability_status: null,
+        last_check_summary_json: null,
+        latest_inspection_id: null,
+        updated_at: new Date().toISOString(),
+      };
+
+  const { error } = await supabaseAdmin
+    .from("assets")
+    .update(updatePayload)
+    .eq("id", assetId);
+
+  if (error) {
+    throw new ApiError(500, "Failed to refresh linked asset status.", error);
+  }
+}
 
 export const POST = withApiHandler<{ params: Promise<Record<string, string>> }>(
   async (req: NextRequest) => {
@@ -260,6 +401,10 @@ export const PATCH = withApiHandler<{ params: Promise<Record<string, string>> }>
     throw new ApiError(500, "Failed to update the report status.", error);
   }
 
+  if (data.asset_id) {
+    await refreshAssetServiceability(supabaseAdmin, data.asset_id);
+  }
+
     return successResponse(data, 200);
   }
 );
@@ -275,6 +420,60 @@ export const PUT = withApiHandler<{ params: Promise<Record<string, string>> }>(
 
   const supabaseAdmin = createAdminClient();
 
+  const hasAssetField = Object.prototype.hasOwnProperty.call(body, "asset_id");
+  const hasInspectionField = Object.prototype.hasOwnProperty.call(
+    body,
+    "source_inspection_id"
+  );
+
+  const parsedAssetId = optionalUuidSchema.safeParse(body.asset_id);
+  const parsedInspectionId = optionalUuidSchema.safeParse(body.source_inspection_id);
+
+  if (hasAssetField && !parsedAssetId.success) {
+    throw new ApiError(400, "Invalid linked asset ID.", parsedAssetId.error.flatten());
+  }
+
+  if (hasInspectionField && !parsedInspectionId.success) {
+    throw new ApiError(
+      400,
+      "Invalid linked inspection ID.",
+      parsedInspectionId.error.flatten()
+    );
+  }
+
+  const { data: existingReport, error: existingReportError } = await supabaseAdmin
+    .from("barrack_damage")
+    .select("id, asset_id, source_inspection_id, status")
+    .eq("id", id)
+    .single<ReportAssetLinkState>();
+
+  if (existingReportError || !existingReport) {
+    throw new ApiError(404, "Report not found.", existingReportError);
+  }
+
+  const nextAssetId = hasAssetField
+    ? parsedAssetId.success
+      ? parsedAssetId.data ?? null
+      : null
+    : existingReport.asset_id;
+  const nextInspectionId = hasInspectionField
+    ? parsedInspectionId.success
+      ? parsedInspectionId.data ?? null
+      : null
+    : existingReport.source_inspection_id;
+
+  if (nextInspectionId && !nextAssetId) {
+    throw new ApiError(400, "Linked inspection requires a linked asset.");
+  }
+
+  if (nextAssetId) {
+    await ensureActiveAsset(supabaseAdmin, nextAssetId);
+  }
+
+  if (nextInspectionId && nextAssetId) {
+    await ensureInspectionLinkable(supabaseAdmin, nextInspectionId, nextAssetId, id);
+  }
+
   const { data: reportData, error: reportError } = await supabaseAdmin
     .from("barrack_damage")
     .update({
@@ -288,6 +487,8 @@ export const PUT = withApiHandler<{ params: Promise<Record<string, string>> }>(
       unit_number: updateData.unit_number,
       description: updateData.description,
       image_urls: updateData.image_urls,
+      asset_id: nextAssetId,
+      source_inspection_id: nextInspectionId,
     })
     .eq("id", id)
     .select()
@@ -313,6 +514,54 @@ export const PUT = withApiHandler<{ params: Promise<Record<string, string>> }>(
       console.error("INCIDENT SYNC ERROR:", incidentError);
     }
   }
+
+  if (
+    existingReport.source_inspection_id &&
+    existingReport.source_inspection_id !== nextInspectionId
+  ) {
+    const { error: deleteInspectionError } = await supabaseAdmin
+      .from("asset_inspections")
+      .delete()
+      .eq("id", existingReport.source_inspection_id)
+      .eq("linked_report_id", id);
+
+    if (deleteInspectionError) {
+      throw new ApiError(
+        500,
+        "Failed to delete the previous linked asset inspection.",
+        deleteInspectionError
+      );
+    }
+  }
+
+  if (nextInspectionId) {
+    const { error: linkInspectionError } = await supabaseAdmin
+      .from("asset_inspections")
+      .update({ linked_report_id: id })
+      .eq("id", nextInspectionId);
+
+    if (linkInspectionError) {
+      throw new ApiError(
+        500,
+        "Failed to link the asset inspection.",
+        linkInspectionError
+      );
+    }
+  }
+
+  const assetIdsToRefresh = new Set<string>();
+  if (existingReport.asset_id) {
+    assetIdsToRefresh.add(existingReport.asset_id);
+  }
+  if (nextAssetId) {
+    assetIdsToRefresh.add(nextAssetId);
+  }
+
+  await Promise.all(
+    Array.from(assetIdsToRefresh).map((assetId) =>
+      refreshAssetServiceability(supabaseAdmin, assetId)
+    )
+  );
 
     return successResponse(reportData, 200);
   }

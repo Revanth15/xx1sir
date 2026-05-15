@@ -101,6 +101,14 @@ export type BarrackDamage = {
   status: string
   approved_by_coy: boolean
   date_reported: string
+  asset_id?: string | null
+  source_inspection_id?: string | null
+  asset?: {
+    id: string
+    asset_code: string
+    display_name?: string | null
+    last_serviceability_status?: string | null
+  } | null
   incident_id: string | null
   incident: DamageIncident | null
   subRows?: BarrackDamage[]
@@ -426,7 +434,12 @@ const ActionCell = ({ report, isSubRow }: { report: BarrackDamage, isSubRow: boo
           <DamageReportForm 
             report={report} 
             mode="edit" 
-            onSuccess={() => setShowEditDialog(false)} 
+            onSuccess={() => {
+              setShowEditDialog(false)
+              startTransition(() => {
+                router.refresh()
+              })
+            }} 
           />
         </DialogContent>
       </Dialog>
