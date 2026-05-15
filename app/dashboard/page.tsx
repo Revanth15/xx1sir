@@ -15,21 +15,27 @@ export default async function DashboardPage({
   const { reports, metadata } = await getReports(params) 
 
   return (
-    <div className="container mx-auto px-4 py-6 sm:px-6 sm:py-10">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold">Barrack Damages Dashboard</h1>
-        <Button asChild variant="outline">
-          <Link href="/dashboard/archive">View Completed Archive</Link>
-        </Button>
-      </div>
+    <div className="min-h-[calc(100vh-3.5rem)] w-full bg-[#050607] bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.12)_1px,transparent_0)] bg-[length:22px_22px]">
+      <div className="container mx-auto px-4 py-4 sm:px-6 sm:py-8">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Barrack Damages Dashboard</h1>
+            <p className="mt-1 text-sm text-white/55">
+              Monitor company workload, hotspots, and report status at a glance.
+            </p>
+          </div>
+        </div>
 
-      <DashboardStats />
-      <DataTable 
-        columns={columns} 
-        data={reports} 
-        pageCount={metadata.totalPages} 
-        statusOptions={BD_STATUS_OPTIONS.filter((status) => status !== "COMPLETED")}
-      />
+        <DashboardStats params={params} />
+        <div className="rounded-xl border border-white/10 bg-black/35 p-3 backdrop-blur-sm sm:p-4">
+          <DataTable 
+            columns={columns} 
+            data={reports} 
+            pageCount={metadata.totalPages} 
+            statusOptions={BD_STATUS_OPTIONS.filter((status) => status !== "COMPLETED")}
+          />
+        </div>
+      </div>
     </div>
   )
 }
