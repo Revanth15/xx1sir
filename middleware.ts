@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 const publicRoutes = [
   '/login',
   '/submit-report',
+  '/api/assets/lookup',
 ]
 
 // Define public route prefixes (for dynamic routes like /blog/[slug])
