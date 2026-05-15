@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Building2,
-  CheckCircle2,
   ClipboardList,
   Clock3,
   Factory,
@@ -432,12 +431,17 @@ export async function DashboardStats({ params }: { params: SearchParams }) {
             <p className="mt-1 text-sm text-white/50">
               {topBlockCount} reports in the busiest block.
             </p>
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               {topTypes.length > 0 ? (
                 topTypes.map(([type, count]) => (
-                  <div key={type} className="flex items-center justify-between gap-3 text-sm">
+                  <div
+                    key={type}
+                    className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs"
+                  >
                     <span className="truncate text-white/70">{type}</span>
-                    <span className="font-semibold text-white">{count}</span>
+                    <span className="rounded-full bg-white/10 px-1.5 py-0.5 font-semibold leading-none text-white">
+                      {count}
+                    </span>
                   </div>
                 ))
               ) : (

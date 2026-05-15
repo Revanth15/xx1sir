@@ -709,9 +709,9 @@ export default function DamageReportForm({
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          <Card className={`shadow-md transition-colors duration-300 ${isUrgent ? "border-destructive/50 ring-1 ring-destructive/10" : ""}`}>
+          <Card className={`shadow-md transition-colors duration-300 ${isUrgent ? "border-destructive/50 pt-0 ring-1 ring-destructive/10" : ""}`}>
             {isUrgent && (
-              <div className="bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive flex items-center gap-2 rounded-t-xl border-b border-destructive/20">
+              <div className="bg-destructive/10 px-6 py-3 mt-0 text-sm font-medium text-destructive flex items-center gap-2 rounded-t-xl border-b border-destructive/20">
                 <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
@@ -865,7 +865,6 @@ export default function DamageReportForm({
                 <div className="space-y-2.5">
                   <Label className="flex items-center justify-between">
                     Physical Tag Placed
-                    <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">By COS / IC</span>
                   </Label>
                   <Controller
                     name="damage_tag_placed"
@@ -877,7 +876,6 @@ export default function DamageReportForm({
                 <div className="space-y-2.5">
                   <Label className={`flex items-center justify-between ${isUrgent ? "text-destructive font-bold" : ""}`}>
                     Escalate as Urgent
-                    <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">IFM WhatsApp</span>
                   </Label>
                   <Controller
                     name="is_urgent"
