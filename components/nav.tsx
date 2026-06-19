@@ -165,6 +165,19 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
+                  isActive={pathname === "/admin/room-qrs"}
+                >
+                  <Link href="/admin/room-qrs">
+                    <QrCode className="h-4 w-4" />
+                    <span>Room QR Codes</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
                   isActive={pathname === "/admin/asset-types"}
                 >
                   <Link href="/admin/asset-types">

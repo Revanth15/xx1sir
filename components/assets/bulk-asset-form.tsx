@@ -20,6 +20,7 @@ import { printAssetLabels } from "@/utils/asset-print";
 import { notify } from "@/utils/toast";
 import { generateAssetCode, generateBulkSerials } from "@/utils/assets";
 import {
+  buildAssetUnitNumberFromSuffix,
   getAssetUnitNumberSuffix,
   getLevelUnitNumberPrefix,
   isRoomUnitNumberValidForLevel,
@@ -155,7 +156,7 @@ export function BulkAssetForm() {
   const handleUnitNumberChange = (value: string) => {
     setForm((current) => ({
       ...current,
-      unit_number: normalizeAssetUnitNumberForLevel(current.level_code, value),
+      unit_number: buildAssetUnitNumberFromSuffix(current.level_code, value),
     }));
   };
 

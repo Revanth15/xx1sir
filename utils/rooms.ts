@@ -38,6 +38,25 @@ export function normalizeAssetUnitNumberForLevel(
   return suffix ? `${levelPrefix}-${suffix}` : `${levelPrefix}-`;
 }
 
+export function buildAssetUnitNumberFromSuffix(
+  levelCode: string | null | undefined,
+  value: string | null | undefined
+) {
+  const levelPrefix = getLevelUnitNumberPrefix(levelCode);
+  const rawValue = (value ?? "").trim().replace(/^#+/, "").replace(/\s+/g, "");
+
+  if (!rawValue) return "";
+  if (!levelPrefix) return rawValue;
+
+  const suffix = rawValue.startsWith(`${levelPrefix}-`)
+    ? rawValue.slice(levelPrefix.length + 1)
+    : rawValue.includes("-")
+      ? rawValue.split("-").slice(1).join("-")
+      : rawValue;
+
+  return suffix ? `${levelPrefix}-${suffix}` : "";
+}
+
 export function getAssetUnitNumberSuffix(
   levelCode: string | null | undefined,
   value: string | null | undefined

@@ -20,6 +20,7 @@ import type { AssetRecord, AssetTypeConfig, AssetWithStatus } from "@/lib/types/
 import { notify } from "@/utils/toast";
 import { generateAssetCode } from "@/utils/assets";
 import {
+  buildAssetUnitNumberFromSuffix,
   getAssetUnitNumberSuffix,
   getLevelUnitNumberPrefix,
   isRoomUnitNumberValidForLevel,
@@ -143,7 +144,7 @@ export function AssetForm({
   const setUnitNumber = (value: string) => {
     setField(
       "unit_number",
-      normalizeAssetUnitNumberForLevel(form.level_code, value)
+      buildAssetUnitNumberFromSuffix(form.level_code, value)
     );
   };
 
