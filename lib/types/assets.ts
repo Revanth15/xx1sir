@@ -28,6 +28,7 @@ export interface AssetRecord {
   unit_code: string;
   block_code: string;
   level_code: string;
+  unit_number: string | null;
   asset_type_code: string;
   serial_number: string;
   display_name: string | null;
@@ -75,6 +76,7 @@ export interface CreateAssetRequest {
   unit_code: string;
   block_code: string;
   level_code: string;
+  unit_number?: string;
   asset_type_code: string;
   serial_number: string;
   display_name?: string;
@@ -90,6 +92,7 @@ export interface BulkCreateAssetsRequest {
   unit_code: string;
   block_code: string;
   level_code: string;
+  unit_number?: string;
   asset_type_code: string;
   serial_start: string;
   quantity: number;

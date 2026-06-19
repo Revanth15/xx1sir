@@ -19,6 +19,13 @@ import type { AssetTypeConfig, AssetWithStatus } from "@/lib/types/assets";
 import { printAssetLabels } from "@/utils/asset-print";
 import { notify } from "@/utils/toast";
 import { generateAssetCode, generateBulkSerials } from "@/utils/assets";
+import {
+  getAssetUnitNumberSuffix,
+  getLevelUnitNumberPrefix,
+  isRoomUnitNumberValidForLevel,
+  normalizeAssetUnitNumberForLevel,
+  normalizeRoomUnitNumber,
+} from "@/utils/rooms";
 
 const DEFAULT_UNIT_CODE = SITE_LOCATION_CONFIG.units[0]?.code ?? "";
 
@@ -26,6 +33,7 @@ type BulkFormState = {
   unit_code: string;
   block_code: string;
   level_code: string;
+  unit_number: string;
   asset_type_code: string;
   serial_start: string;
   quantity: string;
@@ -37,6 +45,7 @@ const INITIAL_FORM: BulkFormState = {
   unit_code: DEFAULT_UNIT_CODE,
   block_code: "",
   level_code: "",
+  unit_number: "",
   asset_type_code: "",
   serial_start: "01",
   quantity: "4",
@@ -50,6 +59,7 @@ export function BulkAssetForm() {
   const [loadingConfigs, setLoadingConfigs] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [createdAssets, setCreatedAssets] = useState<AssetWithStatus[]>([]);
+  const unitNumberPrefix = getLevelUnitNumberPrefix(form.level_code);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,11 +144,39 @@ export function BulkAssetForm() {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const handleLevelChange = (levelCode: string) => {
+    setForm((current) => ({
+      ...current,
+      level_code: levelCode,
+      unit_number: normalizeAssetUnitNumberForLevel(levelCode, current.unit_number),
+    }));
+  };
+
+  const handleUnitNumberChange = (value: string) => {
+    setForm((current) => ({
+      ...current,
+      unit_number: normalizeAssetUnitNumberForLevel(current.level_code, value),
+    }));
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!form.block_code || !form.level_code || !form.asset_type_code) {
       notify.error("Block, level, and asset type are required.");
+      return;
+    }
+
+    if (
+      form.unit_number &&
+      (!isRoomUnitNumberValidForLevel(form.level_code, form.unit_number) ||
+        form.unit_number === `${unitNumberPrefix}-`)
+    ) {
+      notify.error(
+        unitNumberPrefix
+          ? `Unit number must start with ${unitNumberPrefix}- and include the room number.`
+          : "Select a level before entering a unit number."
+      );
       return;
     }
 
@@ -161,6 +199,7 @@ export function BulkAssetForm() {
           unit_code: form.unit_code,
           block_code: form.block_code,
           level_code: form.level_code,
+          unit_number: normalizeRoomUnitNumber(form.unit_number) || undefined,
           asset_type_code: form.asset_type_code,
           serial_start: form.serial_start,
           quantity: quantityNumber,
@@ -210,7 +249,7 @@ export function BulkAssetForm() {
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-4">
 
-<div className="grid grid-cols-3 gap-4">
+<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
   <div className="space-y-2">
     <Label htmlFor="bulk-unit-code">Unit</Label>
     <Select value={form.unit_code} disabled>
@@ -249,7 +288,7 @@ export function BulkAssetForm() {
     <Label htmlFor="bulk-level-code">Level</Label>
     <Select
       value={form.level_code || undefined}
-      onValueChange={(value) => handleFieldChange("level_code", value)}
+      onValueChange={handleLevelChange}
     >
       <SelectTrigger id="bulk-level-code" className="w-full">
         <SelectValue placeholder="Select level" />
@@ -260,6 +299,40 @@ export function BulkAssetForm() {
         ))}
       </SelectContent>
     </Select>
+  </div>
+
+  <div className="space-y-2">
+    <Label htmlFor="bulk-unit-number">Unit Number</Label>
+    <div
+      className={`flex items-stretch rounded-md shadow-sm ${
+        !form.level_code ? "cursor-not-allowed opacity-60" : ""
+      }`}
+    >
+      <span className="flex min-w-14 items-center justify-center rounded-l-md border border-r-0 border-input bg-muted px-3 font-mono text-sm text-muted-foreground select-none">
+        {unitNumberPrefix ? `#${unitNumberPrefix}-` : "#"}
+      </span>
+      <Input
+        id="bulk-unit-number"
+        value={getAssetUnitNumberSuffix(form.level_code, form.unit_number)}
+        onChange={(event) => handleUnitNumberChange(event.target.value)}
+        onBlur={() =>
+          handleFieldChange(
+            "unit_number",
+            form.unit_number === `${unitNumberPrefix}-`
+              ? ""
+              : normalizeAssetUnitNumberForLevel(form.level_code, form.unit_number)
+          )
+        }
+        placeholder="05"
+        disabled={!form.level_code}
+        className="rounded-l-none font-mono"
+      />
+    </div>
+    <p className="text-xs text-muted-foreground">
+      {unitNumberPrefix
+        ? `Optional. Must start with ${unitNumberPrefix}-.`
+        : "Select a level first."}
+    </p>
   </div>
 </div>
 

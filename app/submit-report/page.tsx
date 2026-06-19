@@ -35,6 +35,11 @@ import {
   BD_DAMAGE_TYPE_OPTIONS,
   BD_STATUS_OPTIONS,
 } from "@/lib/defaults";
+import {
+  deriveLevelFromUnitNumber,
+  normalizeRoomBlock,
+  normalizeRoomUnitNumber,
+} from "@/utils/rooms";
 
 const REPORT_STATUS = BD_STATUS_OPTIONS;
 
@@ -101,8 +106,7 @@ const BLOCKS = BLOCK_REFS.map((r) => r.block.replace("Blk", "").trim());
 const INPUT_H = "";
 
 function deriveLevel(unitNumber: string): string {
-  const firstChar = (unitNumber ?? "").replace(/^#/, "").charAt(0);
-  return /[1-6]/.test(firstChar) ? firstChar : "";
+  return deriveLevelFromUnitNumber(unitNumber);
 }
 
 function FieldError({ message }: { message?: string }) {
@@ -509,14 +513,24 @@ export default function DamageReportForm({
   );
 
   const prefillDefaults = useMemo(
-    () => ({
-      block: searchParams.get("prefill_block") || "",
-      unit_number: searchParams.get("prefill_unit_number") || "",
-      location: searchParams.get("prefill_location") || "",
-      description: searchParams.get("prefill_description") || "",
-      asset_id: searchParams.get("asset_id") || "",
-      source_inspection_id: searchParams.get("source_inspection_id") || "",
-    }),
+    () => {
+      const block = normalizeRoomBlock(searchParams.get("prefill_block"));
+      const unitNumber = normalizeRoomUnitNumber(searchParams.get("prefill_unit_number"));
+      const prefillType = searchParams.get("prefill_type") || "";
+      const type = DAMAGE_TYPES.includes(prefillType) ? prefillType : "";
+      const location =
+        searchParams.get("prefill_location") || (block && unitNumber ? "Room" : "");
+
+      return {
+        block,
+        unit_number: unitNumber,
+        location,
+        type,
+        description: searchParams.get("prefill_description") || "",
+        asset_id: searchParams.get("asset_id") || "",
+        source_inspection_id: searchParams.get("source_inspection_id") || "",
+      };
+    },
     [searchParams]
   );
 
@@ -535,7 +549,7 @@ export default function DamageReportForm({
       damage_tag_placed: report?.damage_tag_placed || false,
       is_urgent: report?.is_urgent || false,
       reported_by: report?.reported_by || "",
-      type: report?.type || "",
+      type: report?.type || prefillDefaults.type,
       block: report?.block || prefillDefaults.block,
       unit_number: report?.unit_number || prefillDefaults.unit_number,
       location: report?.location || prefillDefaults.location, 
@@ -577,7 +591,7 @@ export default function DamageReportForm({
       damage_tag_placed: false,
       is_urgent: false,
       reported_by: "",
-      type: "",
+      type: prefillDefaults.type,
       block: prefillDefaults.block,
       unit_number: prefillDefaults.unit_number,
       location: prefillDefaults.location,
@@ -606,7 +620,7 @@ export default function DamageReportForm({
 
   const handleUnitNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
-    if (!val.startsWith("#") && val.length > 0) val = "#" + val.replace(/^#+/, "");
+    if (val.length > 0) val = normalizeRoomUnitNumber(val);
     setValue("unit_number", val, { shouldValidate: true });
   };
 
@@ -659,7 +673,7 @@ export default function DamageReportForm({
       damage_tag_placed: false,
       is_urgent: false,
       reported_by: "",
-      type: "",
+      type: prefillDefaults.type,
       block: prefillDefaults.block,
       unit_number: prefillDefaults.unit_number,
       location: prefillDefaults.location,

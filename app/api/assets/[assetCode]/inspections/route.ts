@@ -135,7 +135,7 @@ export const POST = withApiHandler(
         damage_report_prefill: promptLinkedReport
           ? {
               block: asset.block_code,
-              unit_number: asset.unit_code,
+              unit_number: asset.unit_number || `#${asset.level_code}`,
               location: `Level ${asset.level_code}${
                 asset.location_note ? ` · ${asset.location_note}` : ""
               }`,

@@ -10,11 +10,17 @@ import {
   normalizeAssetCodePart,
 } from "@/utils/assets";
 import { ApiError, successResponse, withApiHandler } from "@/utils/api";
+import {
+  getLevelUnitNumberPrefix,
+  isRoomUnitNumberValidForLevel,
+  normalizeRoomUnitNumber,
+} from "@/utils/rooms";
 
 const createAssetSchema = z.object({
   unit_code: z.string().trim().min(1),
   block_code: z.string().trim().min(1),
   level_code: z.string().trim().min(1),
+  unit_number: z.string().trim().optional(),
   asset_type_code: z.string().trim().min(1),
   serial_number: z.string().trim().min(1),
   display_name: z.string().trim().optional(),
@@ -47,12 +53,24 @@ export const POST = withApiHandler(
     unit_code: normalizeAssetCodePart(body.unit_code),
     block_code: normalizeAssetCodePart(body.block_code),
     level_code: normalizeAssetCodePart(body.level_code),
+    unit_number: normalizeRoomUnitNumber(body.unit_number) || null,
     asset_type_code: normalizeAssetCodePart(body.asset_type_code),
     serial_number: normalizeAssetCodePart(body.serial_number),
     display_name: body.display_name?.trim() || null,
     location_note: body.location_note?.trim() || null,
     is_active: body.is_active ?? true,
   };
+
+  if (
+    normalizedAsset.unit_number &&
+    (!isRoomUnitNumberValidForLevel(normalizedAsset.level_code, normalizedAsset.unit_number) ||
+      normalizedAsset.unit_number === `#${getLevelUnitNumberPrefix(normalizedAsset.level_code)}-`)
+  ) {
+    throw new ApiError(
+      400,
+      `Unit number must start with ${getLevelUnitNumberPrefix(normalizedAsset.level_code)}-.`
+    );
+  }
 
   const assetCode = generateAssetCode(
     normalizedAsset.unit_code,
@@ -133,7 +151,7 @@ export const GET = withApiHandler(
   if (search) {
     const safeSearch = search.trim();
     query = query.or(
-      `asset_code.ilike.%${safeSearch}%,display_name.ilike.%${safeSearch}%,serial_number.ilike.%${safeSearch}%,location_note.ilike.%${safeSearch}%`
+      `asset_code.ilike.%${safeSearch}%,display_name.ilike.%${safeSearch}%,serial_number.ilike.%${safeSearch}%,unit_number.ilike.%${safeSearch}%,location_note.ilike.%${safeSearch}%`
     );
   }
 

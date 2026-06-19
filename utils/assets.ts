@@ -13,6 +13,10 @@ import type {
 export const SINGAPORE_TIME_ZONE = "Asia/Singapore";
 const ASSET_TYPE_QR_TOKEN_MAP: Record<string, string> = {
   WATERCOOLER: "WC",
+  AIRCON: "AC",
+  FALSECEILING: "FC",
+  BOOTWASHER: "BW",
+  WASHINGMACHINE: "WM",
 };
 
 const SINGAPORE_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {

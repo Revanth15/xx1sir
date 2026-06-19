@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import type { AssetInspectionRecord } from "@/lib/types/assets";
 import { summarizeCheckResults } from "@/utils/assets";
+import { normalizeRoomBlock, normalizeRoomUnitNumber } from "@/utils/rooms";
 
 const optionalUuidSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
@@ -179,7 +180,16 @@ export const POST = withApiHandler<{ params: Promise<Record<string, string>> }>(
       );
     }
 
-    const report = parsed.data;
+    const report = {
+      ...parsed.data,
+      block: normalizeRoomBlock(parsed.data.block),
+      unit_number: normalizeRoomUnitNumber(parsed.data.unit_number),
+    };
+
+    if (!report.block || !report.unit_number) {
+      throw new ApiError(400, "Block and unit number are required.");
+    }
+
     const supabaseAdmin = createAdminClient();
     const assetId = report.asset_id ?? null;
     const sourceInspectionId = report.source_inspection_id ?? null;
@@ -474,19 +484,29 @@ export const PUT = withApiHandler<{ params: Promise<Record<string, string>> }>(
     await ensureInspectionLinkable(supabaseAdmin, nextInspectionId, nextAssetId, id);
   }
 
+  const normalizedUpdateData = {
+    ...updateData,
+    block: normalizeRoomBlock(updateData.block),
+    unit_number: normalizeRoomUnitNumber(updateData.unit_number),
+  };
+
+  if (!normalizedUpdateData.block || !normalizedUpdateData.unit_number) {
+    throw new ApiError(400, "Block and unit number are required.");
+  }
+
   const { data: reportData, error: reportError } = await supabaseAdmin
     .from("barrack_damage")
     .update({
-      company: updateData.company,
-      damage_tag_placed: updateData.damage_tag_placed,
-      is_urgent: updateData.is_urgent,
-      reported_by: updateData.reported_by,
-      type: updateData.type,
-      block: updateData.block, // ADDED
-      location: updateData.location,
-      unit_number: updateData.unit_number,
-      description: updateData.description,
-      image_urls: updateData.image_urls,
+      company: normalizedUpdateData.company,
+      damage_tag_placed: normalizedUpdateData.damage_tag_placed,
+      is_urgent: normalizedUpdateData.is_urgent,
+      reported_by: normalizedUpdateData.reported_by,
+      type: normalizedUpdateData.type,
+      block: normalizedUpdateData.block,
+      location: normalizedUpdateData.location,
+      unit_number: normalizedUpdateData.unit_number,
+      description: normalizedUpdateData.description,
+      image_urls: normalizedUpdateData.image_urls,
       asset_id: nextAssetId,
       source_inspection_id: nextInspectionId,
     })
@@ -503,10 +523,10 @@ export const PUT = withApiHandler<{ params: Promise<Record<string, string>> }>(
     const { error: incidentError } = await supabaseAdmin
       .from("damage_incident")
       .update({
-        type: updateData.type,
-        block: updateData.block, // ADDED
-        location: updateData.location,
-        unit_number: updateData.unit_number,
+        type: normalizedUpdateData.type,
+        block: normalizedUpdateData.block,
+        location: normalizedUpdateData.location,
+        unit_number: normalizedUpdateData.unit_number,
       })
       .eq("id", incident_id);
 

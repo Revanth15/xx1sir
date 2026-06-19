@@ -15,11 +15,17 @@ import {
   normalizeAssetCodePart,
 } from "@/utils/assets";
 import { ApiError, successResponse, withApiHandler } from "@/utils/api";
+import {
+  getLevelUnitNumberPrefix,
+  isRoomUnitNumberValidForLevel,
+  normalizeRoomUnitNumber,
+} from "@/utils/rooms";
 
 const bulkCreateSchema = z.object({
   unit_code: z.string().trim().min(1),
   block_code: z.string().trim().min(1),
   level_code: z.string().trim().min(1),
+  unit_number: z.string().trim().optional(),
   asset_type_code: z.string().trim().min(1),
   serial_start: z.string().trim().min(1),
   quantity: z.number().int().min(1).max(100),
@@ -57,10 +63,22 @@ export const POST = withApiHandler(
       unit_code: normalizeAssetCodePart(body.unit_code),
       block_code: normalizeAssetCodePart(body.block_code),
       level_code: normalizeAssetCodePart(body.level_code),
+      unit_number: normalizeRoomUnitNumber(body.unit_number) || null,
       asset_type_code: normalizeAssetCodePart(body.asset_type_code),
       location_note: body.location_note?.trim() || null,
       is_active: body.is_active ?? true,
     };
+
+    if (
+      normalizedBase.unit_number &&
+      (!isRoomUnitNumberValidForLevel(normalizedBase.level_code, normalizedBase.unit_number) ||
+        normalizedBase.unit_number === `#${getLevelUnitNumberPrefix(normalizedBase.level_code)}-`)
+    ) {
+      throw new ApiError(
+        400,
+        `Unit number must start with ${getLevelUnitNumberPrefix(normalizedBase.level_code)}-.`
+      );
+    }
 
     const { data: assetTypeConfig, error: assetTypeError } = await supabaseAdmin
       .from("asset_type_configs")
@@ -87,6 +105,7 @@ export const POST = withApiHandler(
         unit_code: normalizedBase.unit_code,
         block_code: normalizedBase.block_code,
         level_code: normalizedBase.level_code,
+        unit_number: normalizedBase.unit_number,
         asset_type_code: normalizedBase.asset_type_code,
         serial_number: serial,
         display_name: body.display_name_prefix?.trim()

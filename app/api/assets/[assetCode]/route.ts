@@ -16,11 +16,17 @@ import {
   normalizeAssetLookupCode,
 } from "@/utils/assets";
 import { ApiError, successResponse, withApiHandler } from "@/utils/api";
+import {
+  getLevelUnitNumberPrefix,
+  isRoomUnitNumberValidForLevel,
+  normalizeRoomUnitNumber,
+} from "@/utils/rooms";
 
 const updateAssetSchema = z.object({
   unit_code: z.string().trim().min(1).optional(),
   block_code: z.string().trim().min(1).optional(),
   level_code: z.string().trim().min(1).optional(),
+  unit_number: z.string().trim().nullable().optional(),
   asset_type_code: z.string().trim().min(1).optional(),
   serial_number: z.string().trim().min(1).optional(),
   display_name: z.string().trim().nullable().optional(),
@@ -145,6 +151,10 @@ export const PATCH = withApiHandler(
       level_code: normalizeAssetCodePart(
         parsed.data.level_code ?? existingAsset.level_code
       ),
+      unit_number:
+        parsed.data.unit_number === undefined
+          ? existingAsset.unit_number
+          : normalizeRoomUnitNumber(parsed.data.unit_number) || null,
       asset_type_code: normalizeAssetCodePart(
         parsed.data.asset_type_code ?? existingAsset.asset_type_code
       ),
@@ -161,6 +171,17 @@ export const PATCH = withApiHandler(
           : parsed.data.location_note || null,
       is_active: parsed.data.is_active ?? existingAsset.is_active,
     };
+
+    if (
+      nextValues.unit_number &&
+      (!isRoomUnitNumberValidForLevel(nextValues.level_code, nextValues.unit_number) ||
+        nextValues.unit_number === `#${getLevelUnitNumberPrefix(nextValues.level_code)}-`)
+    ) {
+      throw new ApiError(
+        400,
+        `Unit number must start with ${getLevelUnitNumberPrefix(nextValues.level_code)}-.`
+      );
+    }
 
     const nextAssetCode = generateAssetCode(
       nextValues.unit_code,

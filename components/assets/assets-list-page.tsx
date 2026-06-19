@@ -948,7 +948,11 @@ export function AssetsListPage() {
                       </TableCell>
                       <TableCell className="whitespace-normal">
                         <div className="space-y-1">
-                          <p>{`Unit ${asset.unit_code} · Blk ${asset.block_code} · Level ${asset.level_code}`}</p>
+                          <p>
+                            {`Unit ${asset.unit_code} · Blk ${asset.block_code} · Level ${asset.level_code}${
+                              asset.unit_number ? ` · ${asset.unit_number}` : ""
+                            }`}
+                          </p>
                           {asset.display_name ? (
                             <p className="text-xs text-white/45">
                               {asset.display_name}

@@ -189,7 +189,11 @@ export function AssetDetailPage({ assetCode }: AssetDetailPageProps) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Location</p>
-                <p className="mt-1 font-medium">{`Unit ${asset.unit_code} · Blk ${asset.block_code} · Level ${asset.level_code}`}</p>
+                <p className="mt-1 font-medium">
+                  {`Unit ${asset.unit_code} · Blk ${asset.block_code} · Level ${asset.level_code}${
+                    asset.unit_number ? ` · ${asset.unit_number}` : ""
+                  }`}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Serial Number</p>

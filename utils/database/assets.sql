@@ -14,6 +14,7 @@ create table if not exists public.assets (
   unit_code text not null,
   block_code text not null,
   level_code text not null,
+  unit_number text,
   asset_type_code text not null references public.asset_type_configs(code),
   serial_number text not null,
   display_name text,
@@ -49,6 +50,9 @@ create table if not exists public.asset_inspections (
 
 alter table public.assets
   add column if not exists latest_inspection_id uuid;
+
+alter table public.assets
+  add column if not exists unit_number text;
 
 alter table public.asset_inspections
   add column if not exists linked_report_id uuid;
@@ -87,6 +91,7 @@ end $$;
 create index if not exists idx_assets_asset_code on public.assets(asset_code);
 create index if not exists idx_assets_asset_type_code on public.assets(asset_type_code);
 create index if not exists idx_assets_location on public.assets(unit_code, block_code, level_code);
+create index if not exists idx_assets_room_lookup on public.assets(block_code, level_code, unit_number);
 create index if not exists idx_assets_is_active on public.assets(is_active);
 create index if not exists idx_asset_inspections_asset_id on public.asset_inspections(asset_id);
 create index if not exists idx_asset_inspections_inspected_at on public.asset_inspections(inspected_at desc);
@@ -141,6 +146,69 @@ values
     'Exit Light',
     30,
     '{"light_on":{"type":"boolean","required":true,"label":"Light is on"},"sign_visible":{"type":"boolean","required":true,"label":"Sign is visible"}}'::jsonb,
+    true
+  ),
+  (
+    'LIGHT',
+    'Light',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
+    true
+  ),
+  (
+    'FAN',
+    'Fan',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
+    true
+  ),
+  (
+    'AIRCON',
+    'Aircon',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
+    true
+  ),
+  (
+    'WINDOW',
+    'Window',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
+    true
+  ),
+  (
+    'DOOR',
+    'Door',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
+    true
+  ),
+  (
+    'FALSECEILING',
+    'False Ceiling',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
+    true
+  ),
+  (
+    'CORRIDOR',
+    'Corridor',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
+    true
+  ),
+  (
+    'BOOTWASHER',
+    'Bootwasher',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
+    true
+  ),
+  (
+    'WASHINGMACHINE',
+    'Washing Machine',
+    30,
+    '{"condition_ok":{"type":"boolean","required":true,"label":"Condition is acceptable"}}'::jsonb,
     true
   )
 on conflict (code) do nothing;

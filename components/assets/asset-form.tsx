@@ -19,6 +19,13 @@ import { SITE_LOCATION_CONFIG } from "@/lib/defaults";
 import type { AssetRecord, AssetTypeConfig, AssetWithStatus } from "@/lib/types/assets";
 import { notify } from "@/utils/toast";
 import { generateAssetCode } from "@/utils/assets";
+import {
+  getAssetUnitNumberSuffix,
+  getLevelUnitNumberPrefix,
+  isRoomUnitNumberValidForLevel,
+  normalizeAssetUnitNumberForLevel,
+  normalizeRoomUnitNumber,
+} from "@/utils/rooms";
 
 type AssetFormMode = "create" | "edit";
 
@@ -34,6 +41,7 @@ type AssetFormState = {
   unit_code: string;
   block_code: string;
   level_code: string;
+  unit_number: string;
   asset_type_code: string;
   serial_number: string;
   display_name: string;
@@ -49,6 +57,7 @@ function buildInitialState(initialAsset?: AssetRecord | AssetWithStatus | null):
     unit_code: initialAsset?.unit_code ?? DEFAULT_UNIT_CODE,
     block_code: initialAsset?.block_code ?? "",
     level_code: initialAsset?.level_code ?? "",
+    unit_number: initialAsset?.unit_number?.replace(/^#/, "") ?? "",
     asset_type_code: initialAsset?.asset_type_code ?? "",
     serial_number: initialAsset?.serial_number ?? "",
     display_name: initialAsset?.display_name ?? "",
@@ -100,6 +109,7 @@ export function AssetForm({
   }, [form]);
 
   const selectedTypeConfig = assetTypeConfigs.find((config) => config.code === form.asset_type_code) ?? null;
+  const unitNumberPrefix = getLevelUnitNumberPrefix(form.level_code);
   const selectableAssetTypeConfigs = assetTypeConfigs.filter(
     (config) =>
       config.is_active ||
@@ -116,11 +126,41 @@ export function AssetForm({
     });
   };
 
+  const setLevelCode = (levelCode: string) => {
+    setForm((current) => ({
+      ...current,
+      level_code: levelCode,
+      unit_number: normalizeAssetUnitNumberForLevel(levelCode, current.unit_number),
+    }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.level_code;
+      delete next.unit_number;
+      return next;
+    });
+  };
+
+  const setUnitNumber = (value: string) => {
+    setField(
+      "unit_number",
+      normalizeAssetUnitNumberForLevel(form.level_code, value)
+    );
+  };
+
   const validate = () => {
     const nextErrors: Record<string, string> = {};
     if (!form.unit_code) nextErrors.unit_code = "Unit is required.";
     if (!form.block_code) nextErrors.block_code = "Block is required.";
     if (!form.level_code) nextErrors.level_code = "Level is required.";
+    if (
+      form.unit_number &&
+      (!isRoomUnitNumberValidForLevel(form.level_code, form.unit_number) ||
+        form.unit_number === `${unitNumberPrefix}-`)
+    ) {
+      nextErrors.unit_number = unitNumberPrefix
+        ? `Unit number must start with ${unitNumberPrefix}- and include the room number.`
+        : "Select a level before entering a unit number.";
+    }
     if (!form.asset_type_code) nextErrors.asset_type_code = "Asset type is required.";
     if (!form.serial_number.trim()) nextErrors.serial_number = "Serial number is required.";
     setErrors(nextErrors);
@@ -132,12 +172,17 @@ export function AssetForm({
     if (!validate()) return;
     try {
       setSubmitting(true);
+      const payload = {
+        ...form,
+        unit_number: normalizeRoomUnitNumber(form.unit_number) || undefined,
+      };
+
       const response = await fetch(
         mode === "create" ? "/api/assets" : `/api/assets/${encodeURIComponent(assetCode ?? initialAsset?.asset_code ?? "")}`,
         {
           method: mode === "create" ? "POST" : "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         }
       );
       const result = await response.json();
@@ -165,7 +210,7 @@ export function AssetForm({
     <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
       <div className="space-y-4">
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-2">
           <Label htmlFor="unit_code">Unit</Label>
           <Select
@@ -212,7 +257,7 @@ export function AssetForm({
           <Label htmlFor="level_code">Level</Label>
           <Select
             value={form.level_code || undefined}
-            onValueChange={(value) => setField("level_code", value)}
+            onValueChange={setLevelCode}
           >
             <SelectTrigger id="level_code" className="w-full">
               <SelectValue placeholder="Select level" />
@@ -224,6 +269,43 @@ export function AssetForm({
             </SelectContent>
           </Select>
           {errors.level_code && <p className="text-xs text-destructive">{errors.level_code}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="unit_number">Unit Number</Label>
+          <div
+            className={`flex items-stretch rounded-md shadow-sm ${
+              !form.level_code ? "cursor-not-allowed opacity-60" : ""
+            }`}
+          >
+            <span className="flex min-w-14 items-center justify-center rounded-l-md border border-r-0 border-input bg-muted px-3 font-mono text-sm text-muted-foreground select-none">
+              {unitNumberPrefix ? `#${unitNumberPrefix}-` : "#"}
+            </span>
+            <Input
+              id="unit_number"
+              value={getAssetUnitNumberSuffix(form.level_code, form.unit_number)}
+              onChange={(event) => setUnitNumber(event.target.value)}
+              onBlur={() =>
+                setField(
+                  "unit_number",
+                  form.unit_number === `${unitNumberPrefix}-`
+                    ? ""
+                    : normalizeAssetUnitNumberForLevel(form.level_code, form.unit_number)
+                )
+              }
+              placeholder="05"
+              disabled={!form.level_code}
+              className={`rounded-l-none font-mono ${
+                errors.unit_number ? "border-destructive focus-visible:ring-destructive/20" : ""
+              }`}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {unitNumberPrefix
+              ? `Optional. Must start with ${unitNumberPrefix}-.`
+              : "Select a level first."}
+          </p>
+          {errors.unit_number && <p className="text-xs text-destructive">{errors.unit_number}</p>}
         </div>
       </div>
 

@@ -3,12 +3,15 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 const publicRoutes = [
   '/login',
+  '/rooms',
   '/submit-report',
   '/api/assets/lookup',
+  '/api/reports/room-active',
 ]
 
 // Define public route prefixes (for dynamic routes like /blog/[slug])
 const publicPrefixes = [
+  '/rooms',
   '/submit-report',
 ]
 

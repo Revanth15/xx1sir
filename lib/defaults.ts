@@ -74,6 +74,15 @@ export const ASSET_LEVELS = [
 export const ASSET_TYPES = [
   { code: 'WATERCOOLER', label: 'Water Cooler' },
   { code: 'FIREEXT', label: 'Fire Extinguisher' },
+  { code: 'LIGHT', label: 'Light' },
+  { code: 'FAN', label: 'Fan' },
+  { code: 'AIRCON', label: 'Aircon' },
+  { code: 'WINDOW', label: 'Window' },
+  { code: 'DOOR', label: 'Door' },
+  { code: 'FALSECEILING', label: 'False Ceiling' },
+  { code: 'CORRIDOR', label: 'Corridor' },
+  { code: 'BOOTWASHER', label: 'Bootwasher' },
+  { code: 'WASHINGMACHINE', label: 'Washing Machine' },
 ] as const;
 
 export const ASSET_SERVICEABILITY_STATUSES = ['SERVICEABLE', 'UNSERVICEABLE'] as const;
