@@ -25,6 +25,7 @@ import {
 import { SITE_LOCATION_CONFIG } from "@/lib/defaults";
 import { notify } from "@/utils/toast";
 import {
+  buildAssetUnitNumberFromSuffix,
   getAssetUnitNumberSuffix,
   getLevelUnitNumberPrefix,
   isRoomUnitNumberValidForLevel,
@@ -226,7 +227,7 @@ export function RoomQrCodePage() {
   const setUnitNumber = (value: string) => {
     setForm((current) => ({
       ...current,
-      unit_number: normalizeAssetUnitNumberForLevel(current.level_code, value),
+      unit_number: buildAssetUnitNumberFromSuffix(current.level_code, value),
     }));
   };
 
