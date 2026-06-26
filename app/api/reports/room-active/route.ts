@@ -11,6 +11,8 @@ import {
 type RoomActiveReportRecord = {
   id: string;
   case_reference: string;
+  company: string;
+  reported_by: string;
   type: string;
   status: string;
   description: string;
@@ -43,6 +45,8 @@ export const GET = withApiHandler<{ params: Promise<Record<string, string>> }>(
         `
         id,
         case_reference,
+        company,
+        reported_by,
         type,
         status,
         description,
